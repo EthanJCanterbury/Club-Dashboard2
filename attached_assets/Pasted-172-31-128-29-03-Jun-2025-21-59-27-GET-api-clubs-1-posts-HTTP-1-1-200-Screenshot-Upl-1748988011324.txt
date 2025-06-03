@@ -1,0 +1,83 @@
+172.31.128.29 - - [03/Jun/2025 21:59:27] "GET /api/clubs/1/posts HTTP/1.1" 200 -
+=== Screenshot Upload Request ===
+Request files: ['screenshot']
+Request form: {}
+Screenshot filename: icon-rounded 1.png
+Screenshot content type: image/png
+Step 1: Setting up temp directory
+Temp directory: /tmp/hc_cdn_temp
+Step 2: Temp directory ready
+Step 3: Generating unique filename
+Unique filename: a333a51f-c2d3-494b-a206-ae4980d6f34c.png
+Temp file path: /tmp/hc_cdn_temp/a333a51f-c2d3-494b-a206-ae4980d6f34c.png
+Step 4: Saving file temporarily
+File saved, size: 49894 bytes
+Step 5: Uploading to Hack Club CDN
+Upload URL: https://cdn.hackclub.com/api/v3/new
+API Token: beans
+File content size: 49894 bytes
+=== CDN Upload Request Details ===
+Method: POST
+URL: https://cdn.hackclub.com/api/v3/new
+Headers: {'Authorization': 'Bearer beans', 'Content-Type': 'application/json'}
+Payload type: List with 1 data URL
+File size: 49894 bytes
+Content type: image/png
+====================================
+Making request to CDN...
+CDN Response status: 200
+CDN Response headers: {'Access-Control-Allow-Origin': '*', 'Alt-Svc': 'h3=":443"; ma=2592000', 'Content-Length': '329', 'Content-Type': 'application/json; charset=utf-8', 'Date': 'Tue, 03 Jun 2025 21:59:48 GMT', 'Etag': 'W/"149-/xamKnQysegcQG+/NQwXW2jCaV8"', 'Vary': 'Accept-Encoding', 'X-Powered-By': 'Express'}
+CDN Response text: {"files":[{"deployedUrl":"https://hc-cdn.hel1.your-objectstorage.com/s/v3/becc26a79b32dc2e6a7c7f5d130d41246345fdd0_MgAAAABJRU5ErkJggg__","file":"0_becc26a79b32dc2e6a7c7f5d130d41246345fdd0_MgAAAABJRU5ErkJggg__","sha":"becc26a79b32dc2e6a7c7f5d130d41246345fdd0","size":49894}],"cdnBase":"https://hc-cdn.hel1.your-objectstorage.com"}
+Step 6: Cleaning up temp file immediately
+Temp file cleaned up successfully
+CDN Response JSON: {'files': [{'deployedUrl': 'https://hc-cdn.hel1.your-objectstorage.com/s/v3/becc26a79b32dc2e6a7c7f5d130d41246345fdd0_MgAAAABJRU5ErkJggg__', 'file': '0_becc26a79b32dc2e6a7c7f5d130d41246345fdd0_MgAAAABJRU5ErkJggg__', 'sha': 'becc26a79b32dc2e6a7c7f5d130d41246345fdd0', 'size': 49894}], 'cdnBase': 'https://hc-cdn.hel1.your-objectstorage.com'}
+Success! CDN URL: https://hc-cdn.hel1.your-objectstorage.com/s/v3/becc26a79b32dc2e6a7c7f5d130d41246345fdd0_MgAAAABJRU5ErkJggg__
+172.31.128.29 - - [03/Jun/2025 21:59:48] "POST /api/upload-screenshot HTTP/1.1" 200 -
+Received pizza grant data: {'member_id': '1', 'project_name': 'PizzaForm', 'project_hours': '36.48', 'first_name': 'Ethan', 'last_name': 'Canterbury', 'email': 'ethan@hackclub.com', 'birthday': '2010-10-27', 'project_description': 'xxxxdfssdfdfssdf', 'github_url': 'dfssdfdfsdfs', 'live_url': 'dffddfsfsdsdf', 'learning': 'sdffsdsdfsdf', 'doing_well': 'fsdfsdffd', 'improve': 'fsddfdfssdfsdf', 'address_1': 'dfssdfsdfsd', 'address_2': 'fsdfsdf', 'city': 'fddsfdsf', 'state': 'sdfdfssdfdfs', 'zip': 'dfsffd', 'country': 'fdssdfsdf', 'screenshot_url': 'https://hc-cdn.hel1.your-objectstorage.com/s/v3/becc26a79b32dc2e6a7c7f5d130d41246345fdd0_MgAAAABJRU5ErkJggg__'}
+Submitting for user: Ethan
+Prepared submission data with 22 fields
+Submitting to Airtable URL: https://api.airtable.com/v0/appSnnIu0BhjI3E1p/YSWS%20Project%20Submission
+Base ID: appSnnIu0BhjI3E1p
+Table name: 'YSWS Project Submission'
+API token present: True
+API token prefix: patrgRSVik...
+Headers: {'Authorization': 'Bearer patrgRSVikL4ezjUm.a510ac47d428f75226a66401c20b4bb5c91786dac9fc847b0a58ebe18f9c3af0', 'Content-Type': 'application/json'}
+Payload fields: ['Hackatime Project', 'First Name', 'Last Name', 'GitHub Username', 'Email', 'Birthday', 'Description', 'Playable URL', 'Code URL', 'What are we doing well?', 'How can we improve?', 'Address (Line 1)', 'Address (Line 2)', 'City', 'State / Province', 'ZIP / Postal Code', 'Country', 'Club Name', 'Leader Email', 'Hours', 'Grant Amount', 'Status', 'Screenshot', 'How did you hear about this?']
+Full payload: {
+  "records": [
+    {
+      "fields": {
+        "Hackatime Project": "PizzaForm",
+        "First Name": "Ethan",
+        "Last Name": "Canterbury",
+        "GitHub Username": "Ethan",
+        "Email": "ethan@hackclub.com",
+        "Birthday": "2010-10-27",
+        "Description": "xxxxdfssdfdfssdf",
+        "Playable URL": "dffddfsfsdsdf",
+        "Code URL": "dfssdfdfsdfs",
+        "What are we doing well?": "fsdfsdffd",
+        "How can we improve?": "fsddfdfssdfsdf",
+        "Address (Line 1)": "dfssdfsdfsd",
+        "Address (Line 2)": "fsdfsdf",
+        "City": "fddsfdsf",
+        "State / Province": "sdfdfssdfdfs",
+        "ZIP / Postal Code": "dfsffd",
+        "Country": "fdssdfsdf",
+        "Club Name": "Ethan's Club",
+        "Leader Email": "ethan@hackclub.com",
+        "Hours": "36.48",
+        "Grant Amount": "$10",
+        "Status": "Pending",
+        "Screenshot": "https://hc-cdn.hel1.your-objectstorage.com/s/v3/becc26a79b32dc2e6a7c7f5d130d41246345fdd0_MgAAAABJRU5ErkJggg__",
+        "How did you hear about this?": "Hack Club Spaces"
+      }
+    }
+  ]
+}
+Airtable response status: 422
+Airtable response headers: {'Date': 'Tue, 03 Jun 2025 21:59:49 GMT', 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': '139', 'Connection': 'keep-alive', 'Set-Cookie': 'AWSALBTG=KeWSOaU301pL2EW10pYhPWGMSvEdHXLBnmGdXFRPryCIk/A3n9HNvnuiFunGfzP/xrPVEFrCPM1S8fOgS/j7t60qdDVe54fybNhRzbPg975e5v4h6ux+dhIIPyxtqPNXZdcocgyOAMjWIcw+jX9EIV4cE+8ngl4mDakUbdsQIMtvXD1Y/EI=; Expires=Tue, 10 Jun 2025 21:59:49 GMT; Path=/, AWSALBTGCORS=KeWSOaU301pL2EW10pYhPWGMSvEdHXLBnmGdXFRPryCIk/A3n9HNvnuiFunGfzP/xrPVEFrCPM1S8fOgS/j7t60qdDVe54fybNhRzbPg975e5v4h6ux+dhIIPyxtqPNXZdcocgyOAMjWIcw+jX9EIV4cE+8ngl4mDakUbdsQIMtvXD1Y/EI=; Expires=Tue, 10 Jun 2025 21:59:49 GMT; Path=/; SameSite=None; Secure, brw=brw0IgjGbuKz4CnH7; path=/; expires=Wed, 03 Jun 2026 21:59:49 GMT; domain=.airtable.com; samesite=none; secure, brwConsent=opt-in; path=/; expires=Tue, 03 Jun 2025 22:04:49 GMT; domain=.airtable.com; samesite=none; secure', 'Server': 'Tengine', 'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload', 'access-control-allow-origin': '*', 'access-control-allow-methods': 'DELETE,GET,OPTIONS,PATCH,POST,PUT', 'access-control-allow-headers': 'authorization,content-length,content-type,user-agent,x-airtable-application-id,x-airtable-user-agent,x-api-version,x-requested-with', 'X-Frame-Options': 'DENY', 'X-Content-Type-Options': 'nosniff', 'ETag': 'W/"8b-4/elNAC7lq+MAQCttLqIGlViQJw"', 'airtable-datacenter-regions': 'us-east-1', 'Vary': 'Accept-Encoding'}
+Airtable response: {"error":{"type":"INVALID_ATTACHMENT_OBJECT","message":"Invalid attachment for field Screenshot: parameters must be objects, not strings"}}
+Airtable error: 422 - {"error":{"type":"INVALID_ATTACHMENT_OBJECT","message":"Invalid attachment for field Screenshot: parameters must be objects, not strings"}}
+Failed to submit to Airtable
+172.31.128.29 - - [03/Jun/2025 21:59:49] "POST /api/clubs/1/pizza-grants HTTP/1.1" 500 -

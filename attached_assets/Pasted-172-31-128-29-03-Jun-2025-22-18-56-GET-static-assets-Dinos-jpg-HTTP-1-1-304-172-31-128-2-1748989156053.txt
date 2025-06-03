@@ -1,0 +1,16 @@
+172.31.128.29 - - [03/Jun/2025 22:18:56] "GET /static/assets/Dinos.jpg HTTP/1.1" 304 -
+172.31.128.29 - - [03/Jun/2025 22:18:58] "GET /auth/slack HTTP/1.1" 302 -
+Slack OAuth response: {'ok': True, 'app_id': 'A08T5F71J83', 'authed_user': {'id': 'U08BH57AZKP'}, 'scope': 'chat:write,chat:write.customize,commands,users:read,channels:history,groups:history,mpim:history,im:history,im:write,users:read.email,chat:write.public,channels:read,groups:read,usergroups:read,channels:join,channels:manage,groups:write,reactions:write,usergroups:write,emoji:read,pins:read,pins:write,reactions:read,users.profile:read', 'token_type': 'bot', 'access_token': 'xoxb-2210535565-8955260991024-8AtS6CpJeS15Npb0xCIm1sTt', 'bot_user_id': 'U08U37NV50Q', 'team': {'id': 'T0266FRGM', 'name': 'Hack Club'}, 'enterprise': None, 'is_enterprise_install': False}
+=== Slack User Info Retrieval ===
+Access token: xoxb-2210535565-8955...
+Headers: {'Authorization': 'Bearer xoxb-2210535565-8955260991024-8AtS6CpJeS15Npb0xCIm1sTt'}
+Making request to: https://slack.com/api/users.identity
+Identity response status: 200
+Identity response headers: {'date': 'Tue, 03 Jun 2025 22:19:05 GMT', 'server': 'Apache', 'vary': 'Accept-Encoding', 'x-slack-req-id': 'ceb4b382ac56a706d385fa2f1a2da915', 'x-content-type-options': 'nosniff', 'x-xss-protection': '0', 'x-robots-tag': 'noindex,nofollow', 'pragma': 'no-cache', 'cache-control': 'private, no-cache, no-store, must-revalidate', 'expires': 'Sat, 26 Jul 1997 05:00:00 GMT', 'content-type': 'application/json; charset=utf-8', 'access-control-expose-headers': 'x-slack-req-id, retry-after', 'access-control-allow-headers': 'slack-route, x-slack-version-ts, x-b3-traceid, x-b3-spanid, x-b3-parentspanid, x-b3-sampled, x-b3-flags', 'strict-transport-security': 'max-age=31536000; includeSubDomains; preload', 'referrer-policy': 'no-referrer', 'x-slack-unique-id': 'aD902S9EaRP7mbzski4soQAAEC4', 'x-slack-backend': 'r', 'access-control-allow-origin': '*', 'content-length': '45', 'via': '1.1 slack-prod.tinyspeck.com, envoy-www-iad-usjzrziw,envoy-edge-cmh-kaghsctj', 'x-envoy-attempt-count': '1', 'x-envoy-upstream-service-time': '22', 'x-backend': 'main_normal main_canary_with_overflow main_control_with_overflow', 'x-server': 'slack-www-hhvm-main-iad-lmyt', 'x-slack-shared-secret-outcome': 'no-match', 'x-edge-backend': 'envoy-www', 'x-slack-edge-shared-secret-outcome': 'no-match'}
+Identity response text: {"ok":false,"error":"not_allowed_token_type"}
+Identity data parsed: {'ok': False, 'error': 'not_allowed_token_type'}
+ERROR: Identity response not ok: not_allowed_token_type
+172.31.128.29 - - [03/Jun/2025 22:19:05] "GET /auth/slack/callback?code=2210535565.8988398685331.bd4be23f05299d39913825620692b3b02e41fbccebf6808aa8e6287b0d149cab&state=KpkDCe1RVgRfjYwlnWqpWoF0PT4TNX-tqA5-Xhpt2rk HTTP/1.1" 302 -
+172.31.128.29 - - [03/Jun/2025 22:19:05] "GET /login HTTP/1.1" 200 -
+172.31.128.29 - - [03/Jun/2025 22:19:06] "GET /static/assets/logo-rounded.png HTTP/1.1" 304 -
+172.31.128.29 - - [03/Jun/2025 22:19:06] "GET /static/assets/Dinos.jpg HTTP/1.1" 304 -

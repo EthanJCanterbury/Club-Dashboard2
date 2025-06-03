@@ -1,0 +1,103 @@
+
+import os
+import requests
+import json
+from flask import Flask, render_template, request, session, redirect, url_for, flash
+from datetime import datetime
+
+app = Flask(__name__)
+app.secret_key = os.urandom(24)  # For session management
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+    if request.method == 'POST':
+        api_key = request.form.get('api_key')
+        if api_key:
+            session['api_key'] = api_key
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Please enter a valid API key')
+    
+    return render_template('index.html')
+
+@app.route('/dashboard')
+def dashboard():
+    if 'api_key' not in session:
+        flash('Please enter your API key first')
+        return redirect(url_for('index'))
+    
+    api_key = session['api_key']
+    stats = get_hackatime_stats(api_key)
+    
+    if not stats:
+        flash('Failed to fetch data. Please check your API key and try again.')
+        return redirect(url_for('index'))
+    
+    user_data = stats.get('data', {})
+    
+    # Format date ranges
+    if 'start' in user_data and 'end' in user_data:
+        try:
+            start_date = datetime.strptime(user_data['start'], '%Y-%m-%dT%H:%M:%SZ')
+            end_date = datetime.strptime(user_data['end'], '%Y-%m-%dT%H:%M:%SZ')
+            user_data['formatted_start'] = start_date.strftime('%b %d, %Y')
+            user_data['formatted_end'] = end_date.strftime('%b %d, %Y')
+        except:
+            user_data['formatted_start'] = user_data.get('start', 'N/A')
+            user_data['formatted_end'] = user_data.get('end', 'N/A')
+    
+    # Get top projects (more than 0 seconds)
+    projects = [p for p in user_data.get('projects', []) if p.get('total_seconds', 0) > 0]
+    # Sort by total_seconds
+    projects.sort(key=lambda x: x.get('total_seconds', 0), reverse=True)
+    
+    return render_template('dashboard.html', user_data=user_data, projects=projects)
+
+@app.route('/logout')
+def logout():
+    session.pop('api_key', None)
+    flash('You have been logged out')
+    return redirect(url_for('index'))
+
+@app.route('/logging/<project_name>')
+def logging(project_name):
+    if 'api_key' not in session:
+        flash('Please enter your API key first')
+        return redirect(url_for('index'))
+    
+    return render_template('logging.html', project_name=project_name, api_key=session['api_key'])
+
+@app.route('/new_project')
+def new_project():
+    if 'api_key' not in session:
+        flash('Please enter your API key first')
+        return redirect(url_for('index'))
+    
+    # Get project name from the query parameter
+    project_name = request.args.get('project_name', "New Project")
+    
+    return render_template('logging.html', project_name=project_name, api_key=session['api_key'])
+
+def get_hackatime_stats(api_key):
+    url = "https://hackatime.hackclub.com/api/v1/users/my/stats?features=projects"
+    
+    # Use Bearer prefix with API key
+    headers = {
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    try:
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            print(f"Error: API request failed with status code {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return None
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=8080, debug=True)
