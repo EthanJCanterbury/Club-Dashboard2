@@ -290,48 +290,26 @@
             </div>
 
             <div id="leaderFields" style="display: none;">
-                <div id="leaderEmailStep">
-                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-                        <h4 style="color: #856404; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Leader Verification Required</h4>
-                        <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club. We'll send you a verification email.</p>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Leader Email (as registered with Hack Club)</label>
-                        <input type="email" class="form-control" id="leaderEmail" placeholder="Enter your registered leader email">
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Club Name (as registered with Hack Club)</label>
-                        <input type="text" class="form-control" id="leaderClubName" placeholder="Enter your club name" minlength="4">
-                        <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
-                    </div>
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <h4 style="color: #856404; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Leader Verification Required</h4>
+                    <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club.</p>
                 </div>
 
-                <div id="leaderVerificationStep" style="display: none;">
-                    <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-                        <h4 style="color: #155724; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Check Your Email</h4>
-                        <p style="color: #155724; margin: 0; font-size: 0.85rem;">We've sent a verification code to your leader email address.</p>
-                    </div>
+                <div class="form-group">
+                    <label class="form-label">Leader Email (as registered with Hack Club)</label>
+                    <input type="email" class="form-control" id="leaderEmail" placeholder="Enter your registered leader email">
+                </div>
 
-                    <div class="form-group">
-                        <label class="form-label">Verification Code</label>
-                        <input type="text" class="form-control" id="leaderVerificationCode" placeholder="000000" maxlength="6" style="text-align: center; letter-spacing: 0.5rem;">
-                        <small style="color: #6c757d; font-size: 0.8rem;">Enter the 6-digit code sent to your email</small>
-                    </div>
-
-                    <button type="button" onclick="backToLeaderEmail()" style="background: #6c757d; color: white; border: none; padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.9rem; margin-right: 0.5rem;">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </button>
+                <div class="form-group">
+                    <label class="form-label">Club Name (as registered with Hack Club)</label>
+                    <input type="text" class="form-control" id="leaderClubName" placeholder="Enter your club name" minlength="4">
+                    <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
                 </div>
             </div>
 
             <button type="submit" class="btn-auth" id="submitBtn">
                 <i class="fas fa-user-plus"></i> Complete Signup
             </button>
-
-            <div id="signupError" style="color: #dc3545; margin-top: 1rem; display: none;"></div>
-            <div id="signupSuccess" style="color: #28a745; margin-top: 1rem; display: none;"></div>
         </form>
     </div>
 </div>
@@ -348,138 +326,29 @@ function toggleLeaderFields() {
             }
         }
 
-let isInVerificationStep = false;
-
-function backToLeaderEmail() {
-    document.getElementById('leaderEmailStep').style.display = 'block';
-    document.getElementById('leaderVerificationStep').style.display = 'none';
-    document.getElementById('submitBtn').innerHTML = '<i class="fas fa-user-plus"></i> Complete Signup';
-    isInVerificationStep = false;
-}
-
-function sendLeaderVerification() {
-    const submitBtn = document.getElementById('submitBtn');
-    const errorDiv = document.getElementById('signupError');
-    const successDiv = document.getElementById('signupSuccess');
-
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending Verification...';
-    errorDiv.style.display = 'none';
-    successDiv.style.display = 'none';
-
-    fetch('/api/send-slack-leader-verification', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            successDiv.textContent = data.message;
-            successDiv.style.display = 'block';
-            setTimeout(() => {
-                successDiv.style.display = 'none';
-                document.getElementById('leaderEmailStep').style.display = 'none';
-                document.getElementById('leaderVerificationStep').style.display = 'block';
-                submitBtn.innerHTML = '<i class="fas fa-check"></i> Verify & Create Account';
-                isInVerificationStep = true;
-                submitBtn.disabled = false;
-            }, 1500);
-        } else {
-            errorDiv.textContent = data.error;
-            errorDiv.style.display = 'block';
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-user-plus"></i> Complete Signup';
-        }
-    })
-    .catch(error => {
-        errorDiv.textContent = 'Network error occurred';
-        errorDiv.style.display = 'block';
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-user-plus"></i> Complete Signup';
-    });
-}
-
-function completeLeaderSignup() {
-    const submitBtn = document.getElementById('submitBtn');
-    const errorDiv = document.getElementById('signupError');
-    const successDiv = document.getElementById('signupSuccess');
-    const code = document.getElementById('leaderVerificationCode').value;
-
-    if (!code || code.length !== 6) {
-        errorDiv.textContent = 'Please enter the 6-digit verification code';
-        errorDiv.style.display = 'block';
-        return;
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
-    errorDiv.style.display = 'none';
-    successDiv.style.display = 'none';
-
-    fetch('/api/complete-slack-leader-signup', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            verification_code: code
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            successDiv.textContent = data.message;
-            successDiv.style.display = 'block';
-            setTimeout(() => {
-                window.location.href = '/dashboard';
-            }, 2000);
-        } else {
-            errorDiv.textContent = data.error;
-            errorDiv.style.display = 'block';
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fas fa-check"></i> Verify & Create Account';
-        }
-    })
-    .catch(error => {
-        errorDiv.textContent = 'Network error occurred';
-        errorDiv.style.display = 'block';
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-check"></i> Verify & Create Account';
-    });
-}
-
 document.getElementById('completeSignupForm').addEventListener('submit', function(e) {
     e.preventDefault();
 
-    const is_leader = document.getElementById('isLeader').checked;
-    
-    // If it's a leader and we're in verification step, complete the leader signup
-    if (is_leader && isInVerificationStep) {
-        completeLeaderSignup();
-        return;
-    }
-
     const submitBtn = document.getElementById('submitBtn');
     const originalText = submitBtn.innerHTML;
-    const errorDiv = document.getElementById('signupError');
-    const successDiv = document.getElementById('signupSuccess');
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
 
     const username = document.getElementById('username').value.trim();
     const email = document.getElementById('email').value.trim();
     const first_name = document.getElementById('firstName').value.trim();
     const last_name = document.getElementById('lastName').value.trim();
     const birthday = document.getElementById('birthday').value;
+    const is_leader = document.getElementById('isLeader').checked;
     const leaderEmail = document.getElementById('leaderEmail').value;
     const leaderClubName = document.getElementById('leaderClubName').value;
 
-    errorDiv.style.display = 'none';
-    successDiv.style.display = 'none';
 
     if (is_leader && (!leaderEmail || !leaderClubName)) {
-        errorDiv.textContent = 'Leader email and club name are required for club creation';
-        errorDiv.style.display = 'block';
+        showToast('error', 'Leader email and club name are required for club creation', 'Error');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
         return;
     }
 
@@ -494,9 +363,6 @@ document.getElementById('completeSignupForm').addEventListener('submit', functio
         leader_club_name: leaderClubName
     };
 
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
-
     fetch('/complete-slack-signup', {
         method: 'POST',
         headers: {
@@ -507,27 +373,18 @@ document.getElementById('completeSignupForm').addEventListener('submit', functio
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            if (data.requires_verification) {
-                // Leader account needs email verification
-                sendLeaderVerification();
-            } else {
-                // Regular account creation successful
-                successDiv.textContent = data.message;
-                successDiv.style.display = 'block';
-                setTimeout(() => {
-                    window.location.href = '/dashboard';
-                }, 1500);
-            }
+            showToast('success', data.message, 'Account Created');
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 1500);
         } else {
-            errorDiv.textContent = data.error || 'Failed to create account';
-            errorDiv.style.display = 'block';
+            showToast('error', data.error || 'Failed to create account', 'Error');
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
         }
     })
     .catch(error => {
-        errorDiv.textContent = 'Network error. Please try again.';
-        errorDiv.style.display = 'block';
+        showToast('error', 'Network error. Please try again.', 'Error');
         submitBtn.disabled = false;
         submitBtn.innerHTML = originalText;
     });

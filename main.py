@@ -266,164 +266,6 @@ class AirtableService:
 
 airtable_service = AirtableService()
 
-# Gmail API Service
-class GmailService:
-    def __init__(self):
-        self.service = None
-        self.sender_email = os.environ.get('GMAIL_SENDER_EMAIL')
-        self._initialize_service()
-    
-    def _initialize_service(self):
-        try:
-            import json
-            from google.oauth2 import service_account
-            from googleapiclient.discovery import build
-            
-            credentials_json = os.environ.get('GMAIL_CREDENTIALS_JSON')
-            if not credentials_json:
-                print("No Gmail credentials found")
-                return
-            
-            credentials_info = json.loads(credentials_json)
-            
-            # Check if this is a service account
-            if credentials_info.get('type') != 'service_account':
-                print("Gmail credentials must be for a service account")
-                return
-            
-            credentials = service_account.Credentials.from_service_account_info(
-                credentials_info,
-                scopes=['https://www.googleapis.com/auth/gmail.send']
-            )
-            
-            # For domain-wide delegation, delegate to the sender email
-            if self.sender_email:
-                try:
-                    credentials = credentials.with_subject(self.sender_email)
-                    print(f"Setting up domain-wide delegation for {self.sender_email}")
-                except Exception as e:
-                    print(f"Domain-wide delegation setup failed: {str(e)}")
-                    print("Make sure domain-wide delegation is enabled for this service account")
-                    return
-            else:
-                print("No GMAIL_SENDER_EMAIL configured")
-                return
-            
-            self.service = build('gmail', 'v1', credentials=credentials)
-            print("Gmail service initialized successfully")
-            
-        except Exception as e:
-            print(f"Failed to initialize Gmail service: {str(e)}")
-            print("Check your GMAIL_CREDENTIALS_JSON and ensure domain-wide delegation is set up")
-            self.service = None
-    
-    def send_email(self, to_email, subject, body):
-        if not self.service or not self.sender_email:
-            print(f"Gmail not configured - would send to {to_email}: {subject}")
-            return False
-        
-        try:
-            import base64
-            from email.mime.text import MIMEText
-            
-            message = MIMEText(body, 'html')
-            message['to'] = to_email
-            message['from'] = self.sender_email
-            message['subject'] = subject
-            
-            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
-            
-            send_message = self.service.users().messages().send(
-                userId='me',
-                body={'raw': raw_message}
-            ).execute()
-            
-            print(f"Email sent successfully to {to_email}")
-            return True
-            
-        except Exception as e:
-            print(f"Failed to send email to {to_email}: {str(e)}")
-            return False
-
-gmail_service = GmailService()
-
-# Email Verification Service
-class EmailVerificationService:
-    def __init__(self):
-        self.verification_codes = {}  # In production, use Redis or database
-    
-    def generate_verification_code(self):
-        return ''.join(secrets.choice(string.digits) for _ in range(6))
-    
-    def store_verification_code(self, email, club_name, code):
-        # Store with expiration (10 minutes)
-        self.verification_codes[email] = {
-            'code': code,
-            'club_name': club_name,
-            'expires_at': datetime.utcnow() + timedelta(minutes=10)
-        }
-    
-    def verify_code(self, email, code):
-        stored_data = self.verification_codes.get(email)
-        if not stored_data:
-            return False
-        
-        if datetime.utcnow() > stored_data['expires_at']:
-            del self.verification_codes[email]
-            return False
-        
-        if stored_data['code'] == code:
-            return stored_data['club_name']
-        
-        return False
-    
-    def send_verification_email(self, email, code, club_name):
-        subject = f"Verify your Hack Club leadership - {club_name}"
-        
-        body = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #ec3750 0%, #ff6b7a 100%); color: white; padding: 30px; border-radius: 16px; text-align: center; margin-bottom: 30px;">
-                <h1 style="margin: 0; font-size: 28px;">🏴‍☠️ Hack Club Verification</h1>
-                <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Verify your club leadership</p>
-            </div>
-            
-            <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
-                <h2 style="color: #1a202c; margin: 0 0 15px 0;">Welcome, Club Leader!</h2>
-                <p style="color: #4a5568; line-height: 1.6; margin: 0 0 20px 0;">
-                    You're creating a club dashboard for <strong>{club_name}</strong>. 
-                    To verify that you own this email address, please enter the verification code below:
-                </p>
-                
-                <div style="background: white; border: 2px solid #ec3750; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
-                    <div style="color: #666; font-size: 14px; margin-bottom: 8px;">Your verification code is:</div>
-                    <div style="font-size: 32px; font-weight: bold; color: #ec3750; letter-spacing: 8px; font-family: monospace;">
-                        {code}
-                    </div>
-                </div>
-                
-                <p style="color: #718096; font-size: 14px; margin: 20px 0 0 0;">
-                    This code will expire in 10 minutes. If you didn't request this verification, you can safely ignore this email.
-                </p>
-            </div>
-            
-            <div style="text-align: center; color: #a0aec0; font-size: 14px;">
-                <p>Need help? Contact us at <a href="mailto:support@hackclub.com" style="color: #ec3750;">support@hackclub.com</a></p>
-                <p style="margin: 10px 0 0 0;">This email was sent from the Hack Club Dashboard</p>
-            </div>
-        </body>
-        </html>
-        """
-        
-        success = gmail_service.send_email(email, subject, body)
-        if not success:
-            # Fallback to console if Gmail fails
-            print(f"Verification code for {email}: {code} (Club: {club_name})")
-        
-        return True
-
-email_verification_service = EmailVerificationService()
-
 # Leader Verification Service
 class LeaderVerificationService:
     def __init__(self):
@@ -788,28 +630,14 @@ def complete_slack_signup():
         if User.query.filter_by(email=email).first():
             return jsonify({'error': 'Email already registered'}), 400
 
-        # For leader accounts, we need email verification instead of direct creation
+        # Verify leader if they want to create a club
         if is_leader:
             if not leader_email or not leader_club_name:
                 return jsonify({'error': 'Leader email and club name are required for club creation'}), 400
             
-            # Store user data temporarily and redirect to email verification
-            session['pending_leader_signup'] = {
-                'username': username,
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name,
-                'birthday': birthday,
-                'slack_user_id': slack_data['slack_user_id'],
-                'leader_email': leader_email,
-                'leader_club_name': leader_club_name
-            }
-            
-            return jsonify({
-                'success': True, 
-                'requires_verification': True,
-                'message': 'Please verify your leader email to complete signup'
-            })
+            verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+            if not verification_result['verified']:
+                return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
 
         try:
             # Create new user
@@ -825,6 +653,19 @@ def complete_slack_signup():
             user.set_password(secrets.token_urlsafe(32))
 
             db.session.add(user)
+            db.session.flush()
+
+            # Create club if user wants to be a leader
+            if is_leader:
+                verified_club_name = verification_result['club_name']
+                club = Club(
+                    name=verified_club_name,
+                    description="A verified Hack Club - update your club details in the dashboard",
+                    leader_id=user.id
+                )
+                club.generate_join_code()
+                db.session.add(club)
+
             db.session.commit()
 
             # Clear Slack signup data and log user in
@@ -1795,15 +1636,15 @@ def upload_screenshot():
         print(f"Full traceback: {error_details}")
         return jsonify({'success': False, 'error': f'Upload error: {str(e)}'}), 500
 
-@app.route('/api/send-leader-verification', methods=['POST'])
+@app.route('/api/create-club', methods=['POST'])
 @login_required
-@limiter.limit("5 per hour")
-def send_leader_verification():
+@limiter.limit("10 per hour")
+def create_club():
     data = request.get_json()
     leader_email = data.get('leader_email')
-    club_name = data.get('club_name')
+    leader_club_name = data.get('leader_club_name')
 
-    if not leader_email or not club_name:
+    if not leader_email or not leader_club_name:
         return jsonify({'error': 'Leader email and club name are required'}), 400
 
     # Check if user already leads a club
@@ -1811,132 +1652,14 @@ def send_leader_verification():
     if existing_club:
         return jsonify({'error': 'You already lead a club'}), 400
 
-    # Verify leader credentials with Airtable
-    verification_result = leader_verification_service.verify_leader(club_name, leader_email)
+    # Verify leader credentials
+    verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
     if not verification_result['verified']:
         return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
-
-    # Generate and send verification code
-    verification_code = email_verification_service.generate_verification_code()
-    verified_club_name = verification_result['club_name']
-    
-    # Store the verification code
-    email_verification_service.store_verification_code(leader_email, verified_club_name, verification_code)
-    
-    # Send verification email (for now just log it)
-    email_verification_service.send_verification_email(leader_email, verification_code, verified_club_name)
-    
-    return jsonify({'success': True, 'message': f'Verification code sent to {leader_email}'})
-
-@app.route('/api/send-slack-leader-verification', methods=['POST'])
-@limiter.limit("5 per hour")
-def send_slack_leader_verification():
-    pending_data = session.get('pending_leader_signup')
-    if not pending_data:
-        return jsonify({'error': 'No pending leader signup found'}), 400
-
-    leader_email = pending_data['leader_email']
-    club_name = pending_data['leader_club_name']
-
-    # Verify leader credentials with Airtable
-    verification_result = leader_verification_service.verify_leader(club_name, leader_email)
-    if not verification_result['verified']:
-        return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
-
-    # Generate and send verification code
-    verification_code = email_verification_service.generate_verification_code()
-    verified_club_name = verification_result['club_name']
-    
-    # Store the verification code
-    email_verification_service.store_verification_code(leader_email, verified_club_name, verification_code)
-    
-    # Send verification email
-    email_verification_service.send_verification_email(leader_email, verification_code, verified_club_name)
-    
-    return jsonify({'success': True, 'message': f'Verification code sent to {leader_email}'})
-
-@app.route('/api/complete-slack-leader-signup', methods=['POST'])
-@limiter.limit("10 per hour")
-def complete_slack_leader_signup():
-    pending_data = session.get('pending_leader_signup')
-    if not pending_data:
-        return jsonify({'error': 'No pending leader signup found'}), 400
-
-    data = request.get_json()
-    verification_code = data.get('verification_code')
-    leader_email = pending_data['leader_email']
-
-    if not verification_code:
-        return jsonify({'error': 'Verification code is required'}), 400
-
-    # Verify the email verification code
-    verified_club_name = email_verification_service.verify_code(leader_email, verification_code)
-    if not verified_club_name:
-        return jsonify({'error': 'Invalid or expired verification code'}), 400
-
-    try:
-        # Create the user account
-        user = User(
-            username=pending_data['username'],
-            email=pending_data['email'],
-            first_name=pending_data['first_name'],
-            last_name=pending_data['last_name'],
-            slack_user_id=pending_data['slack_user_id'],
-            birthday=datetime.strptime(pending_data['birthday'], '%Y-%m-%d').date() if pending_data['birthday'] else None
-        )
-        user.set_password(secrets.token_urlsafe(32))
-        db.session.add(user)
-        db.session.flush()
-
-        # Create the club
-        club = Club(
-            name=verified_club_name,
-            description="A verified Hack Club - update your club details in the dashboard",
-            leader_id=user.id
-        )
-        club.generate_join_code()
-        db.session.add(club)
-        db.session.commit()
-
-        # Clean up sessions
-        session.pop('pending_leader_signup', None)
-        if leader_email in email_verification_service.verification_codes:
-            del email_verification_service.verification_codes[leader_email]
-
-        # Log user in
-        login_user(user)
-        user.last_login = datetime.utcnow()
-        db.session.commit()
-
-        return jsonify({'success': True, 'message': f'Club "{verified_club_name}" created successfully!'})
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Failed to create account and club: {str(e)}'}), 500
-
-@app.route('/api/create-club', methods=['POST'])
-@login_required
-@limiter.limit("10 per hour")
-def create_club():
-    data = request.get_json()
-    leader_email = data.get('leader_email')
-    verification_code = data.get('verification_code')
-
-    if not leader_email or not verification_code:
-        return jsonify({'error': 'Leader email and verification code are required'}), 400
-
-    # Check if user already leads a club
-    existing_club = Club.query.filter_by(leader_id=current_user.id).first()
-    if existing_club:
-        return jsonify({'error': 'You already lead a club'}), 400
-
-    # Verify the email verification code
-    verified_club_name = email_verification_service.verify_code(leader_email, verification_code)
-    if not verified_club_name:
-        return jsonify({'error': 'Invalid or expired verification code'}), 400
 
     try:
         # Create new club with verified name
+        verified_club_name = verification_result['club_name']
         club = Club(
             name=verified_club_name,
             description="A verified Hack Club - update your club details in the dashboard",
@@ -1945,10 +1668,6 @@ def create_club():
         club.generate_join_code()
         db.session.add(club)
         db.session.commit()
-
-        # Clean up verification code
-        if leader_email in email_verification_service.verification_codes:
-            del email_verification_service.verification_codes[leader_email]
 
         return jsonify({'success': True, 'message': f'Club "{verified_club_name}" created successfully!'})
 
