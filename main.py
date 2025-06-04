@@ -330,13 +330,8 @@ class LeaderVerificationService:
             verification_code = ''.join(secrets.choice(string.digits) for _ in range(6))
             
             # Store verification request in Airtable
-            # Clean the verified club name thoroughly - remove all types of quotes
-            import re
+            # Clean the verified club name - just strip whitespace, don't remove quotes aggressively
             final_club_name = str(verified_club_name).strip()
-            # Remove leading/trailing quotes of any type
-            final_club_name = re.sub(r'^["\']|["\']$', '', final_club_name).strip()
-            # Remove any remaining quote characters
-            final_club_name = final_club_name.replace('"', '').replace("'", '').strip()
             print(f"DEBUG: Verified club name: '{verified_club_name}'")
             print(f"DEBUG: Final club name for Airtable: '{final_club_name}'")
             
