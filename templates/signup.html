@@ -1,4 +1,3 @@
-
 {% extends "base.html" %}
 
 {% block title %}Sign Up - Hack Clubs Dash{% endblock %}
@@ -208,7 +207,7 @@ function toggleLeaderFields() {
     const leaderFields = document.getElementById('leaderFields');
     const leaderEmail = document.querySelector('input[name="leader_email"]');
     const leaderClubName = document.querySelector('input[name="leader_club_name"]');
-    
+
     if (isLeader) {
         leaderFields.style.display = 'block';
         leaderEmail.required = true;
@@ -272,11 +271,45 @@ function sendVerificationEmail() {
 }
 
 function goBackToEmailStep() {
-    document.getElementById('emailStep').style.display = 'block';
-    document.getElementById('verificationStep').style.display = 'none';
-    document.getElementById('verificationError').style.display = 'none';
-    document.getElementById('verificationSuccess').style.display = 'none';
-}
+        document.getElementById('emailStep').style.display = 'block';
+        document.getElementById('verificationStep').style.display = 'none';
+        document.getElementById('verificationError').style.display = 'none';
+        document.getElementById('verificationSuccess').style.display = 'none';
+    }
+
+    function validateAge() {
+        const birthdayInput = document.getElementById('birthday');
+        const ageError = document.getElementById('ageError');
+        const submitButton = document.querySelector('button[type="submit"]');
+
+        if (!birthdayInput.value) {
+            ageError.style.display = 'none';
+            submitButton.disabled = false;
+            return true;
+        }
+
+        const birthDate = new Date(birthdayInput.value);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+
+        if (age < 7 || age > 18) {
+            ageError.style.display = 'block';
+            submitButton.disabled = true;
+            return false;
+        } else {
+            ageError.style.display = 'none';
+            submitButton.disabled = false;
+            return true;
+        }
+    }
+
+    document.getElementById('birthday').addEventListener('change', validateAge);
+    document.getElementById('birthday').addEventListener('blur', validateAge);
 </script>
 {% endblock %}
 
@@ -296,7 +329,7 @@ function goBackToEmailStep() {
                 <label class="form-label">Username</label>
                 <input type="text" class="form-control" name="username" placeholder="Choose a username" required minlength="3" maxlength="30">
             </div>
-            
+
             <div class="form-group">
                 <label class="form-label">Email Address</label>
                 <input type="email" class="form-control" name="email" placeholder="Enter your email" required>
@@ -307,7 +340,7 @@ function goBackToEmailStep() {
                     <label class="form-label">First Name</label>
                     <input type="text" class="form-control" name="first_name" placeholder="Enter your first name" required maxlength="50">
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">Last Name</label>
                     <input type="text" class="form-control" name="last_name" placeholder="Enter your last name" required maxlength="50">
@@ -316,9 +349,10 @@ function goBackToEmailStep() {
 
             <div class="form-group">
                 <label class="form-label">Birthday</label>
-                <input type="date" class="form-control" name="birthday" placeholder="Enter your birthday" required>
+                <input type="date" class="form-control" name="birthday" id="birthday" placeholder="Enter your birthday" required>
+                <div id="ageError" style="color: #dc3545; margin-top: 0.25rem; font-size: 0.875rem; display: none;">You must be between 7 and 18 years old to sign up.</div>
             </div>
-            
+
             <div class="form-group">
                 <label class="form-label">Password</label>
                 <input type="password" class="form-control" name="password" placeholder="Create a password" required minlength="6">
@@ -343,7 +377,7 @@ function goBackToEmailStep() {
                         <label class="form-label">Leader Email (as registered with Hack Club)</label>
                         <input type="email" class="form-control" name="leader_email" id="leaderEmail" placeholder="Enter your registered leader email">
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label">Club Name (as registered with Hack Club)</label>
                         <input type="text" class="form-control" name="leader_club_name" id="leaderClubName" placeholder="Enter your club name" minlength="4">
@@ -374,7 +408,7 @@ function goBackToEmailStep() {
                 <div id="verificationError" style="color: #dc3545; margin-top: 1rem; display: none;"></div>
                 <div id="verificationSuccess" style="color: #28a745; margin-top: 1rem; display: none;"></div>
             </div>
-            
+
             <button type="submit" class="btn-auth">
                 <i class="fas fa-user-plus"></i> Create Account
             </button>

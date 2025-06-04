@@ -956,6 +956,17 @@ def complete_slack_signup():
             valid, birthday = InputValidator.validate_date(birthday, "Birthday")
             if not valid:
                 return jsonify({'error': birthday}), 400
+            
+            # Validate age (must be between 7 and 18)
+            try:
+                birth_date = datetime.strptime(birthday, '%Y-%m-%d').date()
+                today = datetime.now().date()
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                
+                if age < 7 or age > 18:
+                    return jsonify({'error': 'You must be between 7 and 18 years old to create an account'}), 400
+            except ValueError:
+                return jsonify({'error': 'Invalid birthday format'}), 400
 
         # Check if username or email is already taken (case-insensitive)
         if User.query.filter(db.func.lower(User.username) == username.lower()).first():
@@ -1143,6 +1154,19 @@ def signup():
             valid, birthday = InputValidator.validate_date(birthday, "Birthday")
             if not valid:
                 flash(birthday, 'error')
+                return render_template('signup.html')
+            
+            # Validate age (must be between 7 and 18)
+            try:
+                birth_date = datetime.strptime(birthday, '%Y-%m-%d').date()
+                today = datetime.now().date()
+                age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+                
+                if age < 7 or age > 18:
+                    flash('You must be between 7 and 18 years old to create an account', 'error')
+                    return render_template('signup.html')
+            except ValueError:
+                flash('Invalid birthday format', 'error')
                 return render_template('signup.html')
 
         try:

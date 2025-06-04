@@ -279,6 +279,7 @@
             <div class="form-group">
                 <label class="form-label">Birthday</label>
                 <input type="date" class="form-control" id="birthday" placeholder="Enter your birthday">
+                <div id="ageError" style="color: #dc3545; margin-top: 0.5rem; display: none;">You must be between 7 and 18 years old.</div>
             </div>
 
             <div class="checkbox-group">
@@ -409,45 +410,63 @@ function goBackToEmailStep() {
     document.getElementById('verificationSuccess').style.display = 'none';
 }
 
-document.getElementById('completeSignupForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+function validateAge() {
+        const birthdayInput = document.getElementById('birthday');
+        const ageError = document.getElementById('ageError');
+        const submitButton = document.getElementById('submitBtn');
 
-    const submitBtn = document.getElementById('submitBtn');
-    const originalText = submitBtn.innerHTML;
+        if (!birthdayInput.value) {
+            ageError.style.display = 'none';
+            submitButton.disabled = false;
+            return true;
+        }
 
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+        const birthDate = new Date(birthdayInput.value);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const monthDiff = today.getMonth() - birthDate.getMonth();
 
-    const username = document.getElementById('username').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const first_name = document.getElementById('firstName').value.trim();
-    const last_name = document.getElementById('lastName').value.trim();
-    const birthday = document.getElementById('birthday').value;
-    const is_leader = document.getElementById('isLeader').checked;
-    const leaderEmail = document.getElementById('leaderEmail').value;
-    const leaderClubName = document.getElementById('leaderClubName').value;
-    const verificationCode = document.getElementById('verificationCode').value;
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
 
-    if (is_leader && (!leaderEmail || !leaderClubName)) {
-        showToast('error', 'Leader email and club name are required for club creation', 'Error');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-        return;
+        if (age < 7 || age > 18) {
+            ageError.style.display = 'block';
+            submitButton.disabled = true;
+            return false;
+        } else {
+            ageError.style.display = 'none';
+            submitButton.disabled = false;
+            return true;
+        }
     }
 
-    if (is_leader && !verificationCode) {
-        showToast('error', 'Please get and enter the verification code first', 'Error');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-        return;
-    }
+    document.getElementById('birthday').addEventListener('change', validateAge);
+    document.getElementById('birthday').addEventListener('blur', validateAge);
 
-    if (is_leader && verificationCode.length !== 6) {
-        showToast('error', 'Verification code must be 6 digits', 'Error');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-        return;
-    }
+    document.getElementById('completeSignupForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        if (!validateAge()) {
+            showToast('error', 'You must be between 7 and 18 years old to create an account', 'Error');
+            return;
+        }
+
+        const submitBtn = document.getElementById('submitBtn');
+        const originalText = submitBtn.innerHTML;
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+
+        const username = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const first_name = document.getElementById('firstName').value.trim();
+        const last_name = document.getElementById('lastName').value.trim();
+        const birthday = document.getElementById('birthday').value;
+        const is_leader = document.getElementById('isLeader').checked;
+        const leaderEmail = document.getElementById('leaderEmail').value;
+        const leaderClubName = document.getElementById('leaderClubName').value;
+        const verificationCode = document.getElementById('verificationCode').value;
 
     const data = {
         username: username,
