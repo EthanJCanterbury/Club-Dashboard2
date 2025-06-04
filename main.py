@@ -5,9 +5,10 @@ import hashlib
 import requests
 import re
 import html
+import jwt
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import Flask, render_template, redirect, flash, request, jsonify, url_for, abort, session, Response
+from flask import Flask, render_template, redirect, flash, request, jsonify, url_for, abort, session, Response, make_response
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -171,6 +172,7 @@ def get_database_url():
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', secrets.token_hex(16))
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', secrets.token_hex(32))
 app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -343,6 +345,70 @@ def load_user(user_id):
     if not db_available:
         return None
     return db.session.get(User, int(user_id))
+
+def generate_auth_token(user_id):
+    """Generate a JWT token for persistent authentication"""
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.utcnow() + timedelta(days=5),
+        'iat': datetime.utcnow()
+    }
+    return jwt.encode(payload, app.config['JWT_SECRET_KEY'], algorithm='HS256')
+
+def verify_auth_token(token):
+    """Verify and decode a JWT token"""
+    try:
+        payload = jwt.decode(token, app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+        return payload['user_id']
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+@app.before_request
+def check_auth_token():
+    """Check for persistent auth token before each request"""
+    if not db_available or current_user.is_authenticated:
+        return
+    
+    # Skip token check for auth-related routes
+    if request.endpoint in ['login', 'signup', 'slack_login', 'slack_callback', 'complete_slack_signup', 'index']:
+        return
+    
+    auth_token = request.cookies.get('auth_token')
+    if auth_token:
+        user_id = verify_auth_token(auth_token)
+        if user_id:
+            user = db.session.get(User, user_id)
+            if user and user.is_active():
+                login_user(user, remember=True)
+                user.last_login = datetime.utcnow()
+                db.session.commit()
+
+def set_auth_cookie(response, user_id):
+    """Set persistent auth cookie"""
+    token = generate_auth_token(user_id)
+    response.set_cookie(
+        'auth_token',
+        token,
+        max_age=5 * 24 * 60 * 60,  # 5 days in seconds
+        httponly=True,
+        secure=request.is_secure,
+        samesite='Lax'
+    )
+    return response
+
+def clear_auth_cookie(response):
+    """Clear auth cookie on logout"""
+    response.set_cookie(
+        'auth_token',
+        '',
+        expires=0,
+        httponly=True,
+        secure=request.is_secure,
+        samesite='Lax'
+    )
+    return response
 
 # Airtable Service for Pizza Grants
 class AirtableService:
@@ -891,7 +957,11 @@ def slack_callback():
         user.last_login = datetime.utcnow()
         db.session.commit()
         flash(f'Welcome back, {user.username}!', 'success')
-        return redirect(url_for('dashboard'))
+        
+        # Set persistent auth cookie
+        response = make_response(redirect(url_for('dashboard')))
+        set_auth_cookie(response, user.id)
+        return response
     else:
         # New user, store Slack data in session and show completion modal
         session['slack_signup_data'] = {
@@ -1032,7 +1102,7 @@ def complete_slack_signup():
             user.last_login = datetime.utcnow()
             db.session.commit()
 
-            return jsonify({'success': True, 'message': 'Account created successfully!'})
+            return jsonify({'success': True, 'message': 'Account created successfully!', 'set_auth_cookie': True, 'user_id': user.id})
 
         except Exception as e:
             db.session.rollback()
@@ -1089,7 +1159,11 @@ def login():
                 user.last_login = datetime.utcnow()
                 db.session.commit()
                 flash(f'Welcome back, {user.username}!', 'success')
-                return redirect(url_for('dashboard'))
+                
+                # Set persistent auth cookie
+                response = make_response(redirect(url_for('dashboard')))
+                set_auth_cookie(response, user.id)
+                return response
 
             flash('Invalid email/username or password', 'error')
         except Exception as e:
@@ -1226,8 +1300,17 @@ def signup():
                 db.session.add(club)
 
             db.session.commit()
-            flash('Account created successfully! Please log in.', 'success')
-            return redirect(url_for('login'))
+            
+            # Auto-login the user after signup
+            login_user(user, remember=True)
+            user.last_login = datetime.utcnow()
+            db.session.commit()
+            flash(f'Welcome to Hack Club, {user.username}!', 'success')
+            
+            # Set persistent auth cookie
+            response = make_response(redirect(url_for('dashboard')))
+            set_auth_cookie(response, user.id)
+            return response
         except Exception as e:
             flash('Database error. Please try again later.', 'error')
 
@@ -1248,7 +1331,11 @@ def require_database(f):
 def logout():
     logout_user()
     flash('You have been logged out.', 'success')
-    return redirect(url_for('index'))
+    
+    # Clear auth cookie
+    response = make_response(redirect(url_for('index')))
+    clear_auth_cookie(response)
+    return response
 
 @app.route('/dashboard')
 @login_required
@@ -1325,7 +1412,11 @@ def join_club_redirect():
         db.session.commit()
 
         flash(f"You have successfully joined {club.name}!", 'success')
-        return redirect(url_for('club_dashboard', club_id=club.id))
+        
+        # Refresh auth cookie
+        response = make_response(redirect(url_for('club_dashboard', club_id=club.id)))
+        set_auth_cookie(response, current_user.id)
+        return response
     else:
         session['pending_join_code'] = join_code
         flash('Please log in or sign up to join the club', 'info')
@@ -2170,7 +2261,23 @@ def admin_login_as_user(user_id):
     user.last_login = datetime.utcnow()
     db.session.commit()
 
-    return jsonify({'message': f'Successfully logged in as {user.username}'})
+    return jsonify({'message': f'Successfully logged in as {user.username}', 'set_auth_cookie': True, 'user_id': user.id})
+
+@app.route('/api/set-auth-cookie', methods=['POST'])
+@login_required
+@limiter.limit("100 per hour")
+def set_auth_cookie_endpoint():
+    """API endpoint to set auth cookie via JavaScript"""
+    data = request.get_json()
+    user_id = data.get('user_id')
+    
+    # Only allow setting cookie for current user or if admin
+    if user_id != current_user.id and not current_user.is_admin:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    response = make_response(jsonify({'success': True}))
+    set_auth_cookie(response, user_id)
+    return response
 
 @app.route('/api/upload-screenshot', methods=['POST'])
 @login_required
