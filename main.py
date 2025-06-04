@@ -343,19 +343,10 @@ class LeaderVerificationService:
             fields = {
                 'Email': email,
                 'Code': verification_code,
-                'Club': final_club_name,
-                'User Name': user_name,
-                'Status': 'Pending',
-                'Created': datetime.utcnow().isoformat()
+                'Club': final_club_name
             }
 
-            # Create a clean copy of fields to avoid modifying the original
-            clean_fields = fields.copy()
-            # Ensure club name is a clean string without extra quotes
-            if 'Club' in clean_fields:
-                clean_fields['Club'] = str(clean_fields['Club']).strip().strip('"\'')
-                
-            payload = {'records': [{'fields': clean_fields}]}
+            payload = {'records': [{'fields': fields}]}
             print(f"DEBUG: Payload being sent to Airtable: {payload}")
             verification_response = requests.post(self.verification_url, headers=self.headers, json=payload)
 
