@@ -662,9 +662,9 @@
                 <h2>Ready to Start Your Journey?</h2>
                 <p>Join the global movement of teenage hackers! Create your own club or join an existing one to connect with fellow builders and innovators.</p>
                 <div class="empty-actions">
-                    <a href="{{ url_for('signup') }}?is_leader=true" class="btn-hero btn-primary-hero">
+                    <button class="btn-hero btn-primary-hero" onclick="showCreateClubModal()">
                         Create a Club
-                    </a>
+                    </button>
                     <button class="btn-hero btn-secondary-hero" onclick="joinClubPrompt()">
                         Join Club
                     </button>
@@ -674,11 +674,116 @@
     </div>
 </div>
 
+<!-- Create Club Modal -->
+<div id="createClubModal" class="modal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4);">
+    <div class="modal-content" style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: none; width: 400px; border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);">
+        <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 style="margin: 0; color: #1a202c;"><i class="fas fa-crown"></i> Create Your Club</h3>
+            <button class="close" onclick="closeCreateClubModal()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                <h4 style="color: #856404; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Leader Verification Required</h4>
+                <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club.</p>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748; font-size: 0.875rem;">Leader Email (as registered with Hack Club)</label>
+                <input type="email" id="modalLeaderEmail" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;" placeholder="Enter your registered leader email">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748; font-size: 0.875rem;">Club Name (as registered with Hack Club)</label>
+                <input type="text" id="modalLeaderClubName" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;" placeholder="Enter your club name" minlength="4">
+                <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
+            </div>
+            
+            <button onclick="createClub()" style="background: linear-gradient(135deg, #ec3750, #d63146); color: white; border: none; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                <i class="fas fa-plus"></i> Create Club
+            </button>
+            
+            <div id="createClubError" style="color: #dc3545; margin-top: 1rem; display: none;"></div>
+            <div id="createClubSuccess" style="color: #28a745; margin-top: 1rem; display: none;"></div>
+        </div>
+    </div>
+</div>
+
 <script>
     function joinClubPrompt() {
         const joinCode = prompt('Enter the club join code:');
         if (joinCode) {
             window.location.href = `/join-club?code=${joinCode}`;
+        }
+    }
+
+    function showCreateClubModal() {
+        document.getElementById('createClubModal').style.display = 'block';
+    }
+
+    function closeCreateClubModal() {
+        document.getElementById('createClubModal').style.display = 'none';
+        document.getElementById('modalLeaderEmail').value = '';
+        document.getElementById('modalLeaderClubName').value = '';
+        document.getElementById('createClubError').style.display = 'none';
+        document.getElementById('createClubSuccess').style.display = 'none';
+    }
+
+    function createClub() {
+        const email = document.getElementById('modalLeaderEmail').value;
+        const clubName = document.getElementById('modalLeaderClubName').value;
+        const errorDiv = document.getElementById('createClubError');
+        const successDiv = document.getElementById('createClubSuccess');
+
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+
+        if (!email || !clubName) {
+            errorDiv.textContent = 'Please fill in all fields';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        if (clubName.length < 4) {
+            errorDiv.textContent = 'Club name must be at least 4 characters';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        fetch('/api/create-club', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                leader_email: email,
+                leader_club_name: clubName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                successDiv.textContent = data.message;
+                successDiv.style.display = 'block';
+                setTimeout(() => {
+                    closeCreateClubModal();
+                    location.reload();
+                }, 2000);
+            } else {
+                errorDiv.textContent = data.error;
+                errorDiv.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            errorDiv.textContent = 'Network error occurred';
+            errorDiv.style.display = 'block';
+        });
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('createClubModal');
+        if (event.target == modal) {
+            closeCreateClubModal();
         }
     }
 </script>

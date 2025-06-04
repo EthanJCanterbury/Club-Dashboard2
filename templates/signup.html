@@ -201,6 +201,25 @@
         letter-spacing: 0.5px;
     }
 </style>
+
+<script>
+function toggleLeaderFields() {
+    const isLeader = document.getElementById('isLeader').checked;
+    const leaderFields = document.getElementById('leaderFields');
+    const leaderEmail = document.querySelector('input[name="leader_email"]');
+    const leaderClubName = document.querySelector('input[name="leader_club_name"]');
+    
+    if (isLeader) {
+        leaderFields.style.display = 'block';
+        leaderEmail.required = true;
+        leaderClubName.required = true;
+    } else {
+        leaderFields.style.display = 'none';
+        leaderEmail.required = false;
+        leaderClubName.required = false;
+    }
+}
+</script>
 {% endblock %}
 
 {% block content %}
@@ -248,11 +267,29 @@
             </div>
 
             <div class="checkbox-group">
-                <input type="checkbox" name="is_leader" id="isLeader">
+                <input type="checkbox" name="is_leader" id="isLeader" onchange="toggleLeaderFields()">
                 <label for="isLeader">
                     I want to create and lead a club 
                     <span class="leader-badge">Leader</span>
                 </label>
+            </div>
+
+            <div id="leaderFields" style="display: none;">
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <h4 style="color: #856404; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Leader Verification Required</h4>
+                    <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club. Please provide your verification details.</p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Leader Email (as registered with Hack Club)</label>
+                    <input type="email" class="form-control" name="leader_email" placeholder="Enter your registered leader email">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Club Name (as registered with Hack Club)</label>
+                    <input type="text" class="form-control" name="leader_club_name" placeholder="Enter your club name" minlength="4">
+                    <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
+                </div>
             </div>
             
             <button type="submit" class="btn-auth">

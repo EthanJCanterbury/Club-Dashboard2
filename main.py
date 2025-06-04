@@ -266,6 +266,63 @@ class AirtableService:
 
 airtable_service = AirtableService()
 
+# Leader Verification Service
+class LeaderVerificationService:
+    def __init__(self):
+        self.api_token = os.environ.get('AIRTABLE_TOKEN')
+        self.base_id = os.environ.get('AIRTABLE_BASE_ID', 'appSnnIu0BhjI3E1p')
+        self.table_name = 'Club Leaders & Emails'
+        self.headers = {
+            'Authorization': f'Bearer {self.api_token}',
+            'Content-Type': 'application/json'
+        }
+        import urllib.parse
+        encoded_table_name = urllib.parse.quote(self.table_name)
+        self.base_url = f'https://api.airtable.com/v0/{self.base_id}/{encoded_table_name}'
+
+    def verify_leader(self, club_name, email):
+        if not self.api_token:
+            return {'verified': False, 'error': 'Verification service unavailable'}
+
+        try:
+            # Search for records matching the email and club name
+            params = {
+                'filterByFormula': f'AND(SEARCH(LOWER("{email}"), LOWER({{Current Leaders\' Emails}})), SEARCH(LOWER("{club_name[:4]}"), LOWER({{Venue}})))'
+            }
+            
+            response = requests.get(self.base_url, headers=self.headers, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get('records', [])
+                
+                if records:
+                    # Found matching record - verify more strictly
+                    for record in records:
+                        fields = record.get('fields', {})
+                        venue = fields.get('Venue', '').lower()
+                        emails = fields.get("Current Leaders' Emails", '').lower()
+                        
+                        # Check if at least 4 characters of club name match and email is found
+                        if (club_name.lower()[:4] in venue and 
+                            len(club_name) >= 4 and 
+                            email.lower() in emails):
+                            return {
+                                'verified': True, 
+                                'club_name': fields.get('Venue', ''),
+                                'leaders': fields.get('Current Leader(s)', '')
+                            }
+                
+                return {'verified': False, 'error': 'No matching club and email combination found'}
+            else:
+                return {'verified': False, 'error': f'Verification failed: {response.status_code}'}
+                
+        except Exception as e:
+            print(f"Error verifying leader: {str(e)}")
+            return {'verified': False, 'error': f'Verification error: {str(e)}'}
+
+leader_verification_service = LeaderVerificationService()
+
 # Hackatime Service
 class HackatimeService:
     def __init__(self):
@@ -553,6 +610,8 @@ def complete_slack_signup():
         birthday = data.get('birthday', '').strip()
         email = data.get('email', slack_data.get('email', '')).strip()
         is_leader = data.get('is_leader', False)
+        leader_email = data.get('leader_email')
+        leader_club_name = data.get('leader_club_name')
 
         # Validation
         if not username or len(username) < 3:
@@ -570,6 +629,15 @@ def complete_slack_signup():
 
         if User.query.filter_by(email=email).first():
             return jsonify({'error': 'Email already registered'}), 400
+
+        # Verify leader if they want to create a club
+        if is_leader:
+            if not leader_email or not leader_club_name:
+                return jsonify({'error': 'Leader email and club name are required for club creation'}), 400
+            
+            verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+            if not verification_result['verified']:
+                return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
 
         try:
             # Create new user
@@ -589,9 +657,10 @@ def complete_slack_signup():
 
             # Create club if user wants to be a leader
             if is_leader:
+                verified_club_name = verification_result['club_name']
                 club = Club(
-                    name=f"{username}'s Club",
-                    description="A new Hack Club - edit your club details in the dashboard",
+                    name=verified_club_name,
+                    description="A verified Hack Club - update your club details in the dashboard",
                     leader_id=user.id
                 )
                 club.generate_join_code()
@@ -668,6 +737,8 @@ def signup():
         last_name = request.form.get('last_name')
         birthday = request.form.get('birthday')
         is_leader = request.form.get('is_leader') == 'on'
+        leader_email = request.form.get('leader_email')
+        leader_club_name = request.form.get('leader_club_name')
 
         try:
             if User.query.filter_by(email=email).first():
@@ -678,15 +749,28 @@ def signup():
                 flash('Username already taken', 'error')
                 return render_template('signup.html')
 
+            # Verify leader if they want to create a club
+            if is_leader:
+                if not leader_email or not leader_club_name:
+                    flash('Leader email and club name are required for club creation', 'error')
+                    return render_template('signup.html')
+                
+                verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+                if not verification_result['verified']:
+                    flash(f'Leader verification failed: {verification_result["error"]}', 'error')
+                    return render_template('signup.html')
+
             user = User(username=username, email=email, first_name=first_name, last_name=last_name, birthday=datetime.strptime(birthday, '%Y-%m-%d').date() if birthday else None)
             user.set_password(password)
             db.session.add(user)
             db.session.flush()
 
             if is_leader:
+                # Use verified club name from Airtable
+                verified_club_name = verification_result['club_name']
                 club = Club(
-                    name=f"{username}'s Club",
-                    description="A new Hack Club - edit your club details in the dashboard",
+                    name=verified_club_name,
+                    description="A verified Hack Club - update your club details in the dashboard",
                     leader_id=user.id
                 )
                 club.generate_join_code()
@@ -1551,6 +1635,45 @@ def upload_screenshot():
         print(f"Screenshot upload error: {str(e)}")
         print(f"Full traceback: {error_details}")
         return jsonify({'success': False, 'error': f'Upload error: {str(e)}'}), 500
+
+@app.route('/api/create-club', methods=['POST'])
+@login_required
+@limiter.limit("10 per hour")
+def create_club():
+    data = request.get_json()
+    leader_email = data.get('leader_email')
+    leader_club_name = data.get('leader_club_name')
+
+    if not leader_email or not leader_club_name:
+        return jsonify({'error': 'Leader email and club name are required'}), 400
+
+    # Check if user already leads a club
+    existing_club = Club.query.filter_by(leader_id=current_user.id).first()
+    if existing_club:
+        return jsonify({'error': 'You already lead a club'}), 400
+
+    # Verify leader credentials
+    verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+    if not verification_result['verified']:
+        return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
+
+    try:
+        # Create new club with verified name
+        verified_club_name = verification_result['club_name']
+        club = Club(
+            name=verified_club_name,
+            description="A verified Hack Club - update your club details in the dashboard",
+            leader_id=current_user.id
+        )
+        club.generate_join_code()
+        db.session.add(club)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': f'Club "{verified_club_name}" created successfully!'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to create club: {str(e)}'}), 500
 
 @app.route('/api/admin/reset-password/<int:user_id>', methods=['POST'])
 @login_required
