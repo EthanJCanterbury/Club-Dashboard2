@@ -368,22 +368,27 @@ def verify_auth_token(token):
 @app.before_request
 def check_auth_token():
     """Check for persistent auth token before each request"""
-    if not db_available or current_user.is_authenticated:
+    if not db_available:
         return
     
-    # Skip token check for auth-related routes (but not index)
+    # Skip token check for auth-related routes
     if request.endpoint in ['login', 'signup', 'slack_login', 'slack_callback', 'complete_slack_signup']:
         return
     
-    auth_token = request.cookies.get('auth_token')
-    if auth_token:
-        user_id = verify_auth_token(auth_token)
-        if user_id:
-            user = db.session.get(User, user_id)
-            if user and user.is_active():
-                login_user(user, remember=True)
-                user.last_login = datetime.utcnow()
-                db.session.commit()
+    # Only check token if user is not already authenticated
+    if not current_user.is_authenticated:
+        auth_token = request.cookies.get('auth_token')
+        if auth_token:
+            user_id = verify_auth_token(auth_token)
+            if user_id:
+                user = db.session.get(User, user_id)
+                if user and user.is_active():
+                    login_user(user, remember=True)
+                    user.last_login = datetime.utcnow()
+                    db.session.commit()
+                    # Force refresh the current_user object
+                    from flask_login import _get_user
+                    _get_user()
 
 def set_auth_cookie(response, user_id):
     """Set persistent auth cookie"""
