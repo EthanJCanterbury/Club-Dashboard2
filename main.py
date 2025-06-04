@@ -17,6 +17,12 @@ from flask_limiter.util import get_remote_address
 import string
 import urllib.parse
 
+try:
+    from flask_session import Session
+    session_available = True
+except ImportError:
+    session_available = False
+
 def get_database_url():
     url = os.getenv('DATABASE_URL')
     if url and url.startswith('postgres://'):
@@ -27,6 +33,20 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', secrets.token_hex(16))
 app.config['SQLALCHEMY_DATABASE_URI'] = get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Configure persistent sessions
+if session_available:
+    app.config['SESSION_TYPE'] = 'filesystem'
+    app.config['SESSION_FILE_DIR'] = os.path.join(os.getcwd(), 'flask_session')
+    app.config['SESSION_PERMANENT'] = True
+    app.config['SESSION_USE_SIGNER'] = True
+    app.config['SESSION_KEY_PREFIX'] = 'hackclub_'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+    
+    # Create session directory if it doesn't exist
+    os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
+    
+    Session(app)
 
 SLACK_CLIENT_ID = os.getenv('SLACK_CLIENT_ID')
 SLACK_CLIENT_SECRET = os.getenv('SLACK_CLIENT_SECRET')
@@ -39,6 +59,8 @@ try:
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'login'
+    login_manager.remember_cookie_duration = timedelta(days=30)
+    login_manager.session_protection = "strong"
     
     limiter = Limiter(
         key_func=get_remote_address,
@@ -724,7 +746,8 @@ def slack_callback():
 
     if user:
         # User exists, log them in
-        login_user(user)
+        login_user(user, remember=True)
+        session.permanent = True
         user.last_login = datetime.utcnow()
         db.session.commit()
         flash(f'Welcome back, {user.username}!', 'success')
@@ -831,7 +854,8 @@ def complete_slack_signup():
 
             # Clear Slack signup data and log user in
             session.pop('slack_signup_data', None)
-            login_user(user)
+            login_user(user, remember=True)
+            session.permanent = True
             user.last_login = datetime.utcnow()
             db.session.commit()
 
@@ -868,7 +892,8 @@ def login():
         try:
             user = User.query.filter_by(email=email).first()
             if user and user.check_password(password):
-                login_user(user)
+                login_user(user, remember=True)
+                session.permanent = True
                 user.last_login = datetime.utcnow()
                 db.session.commit()
                 flash(f'Welcome back, {user.username}!', 'success')
@@ -2075,13 +2100,20 @@ def test_airtable_connection():
         return jsonify({'error': f'Error testing Airtable: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    # Install Flask-Limiter if not available
+    # Install required packages if not available
     try:
         import flask_limiter
     except ImportError:
         print("Installing Flask-Limiter...")
         import subprocess
         subprocess.check_call(['pip', 'install', 'Flask-Limiter'])
+        
+    try:
+        import flask_session
+    except ImportError:
+        print("Installing Flask-Session...")
+        import subprocess
+        subprocess.check_call(['pip', 'install', 'Flask-Session'])
         
     if db_available:
         try:
