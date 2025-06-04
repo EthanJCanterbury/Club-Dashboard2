@@ -772,14 +772,28 @@ def complete_slack_signup():
         if User.query.filter_by(email=email).first():
             return jsonify({'error': 'Email already registered'}), 400
 
-        # Verify leader if they want to create a club
+        # For leader accounts, we need email verification instead of direct creation
         if is_leader:
             if not leader_email or not leader_club_name:
                 return jsonify({'error': 'Leader email and club name are required for club creation'}), 400
             
-            verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
-            if not verification_result['verified']:
-                return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
+            # Store user data temporarily and redirect to email verification
+            session['pending_leader_signup'] = {
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'birthday': birthday,
+                'slack_user_id': slack_data['slack_user_id'],
+                'leader_email': leader_email,
+                'leader_club_name': leader_club_name
+            }
+            
+            return jsonify({
+                'success': True, 
+                'requires_verification': True,
+                'message': 'Please verify your leader email to complete signup'
+            })
 
         try:
             # Create new user
@@ -795,19 +809,6 @@ def complete_slack_signup():
             user.set_password(secrets.token_urlsafe(32))
 
             db.session.add(user)
-            db.session.flush()
-
-            # Create club if user wants to be a leader
-            if is_leader:
-                verified_club_name = verification_result['club_name']
-                club = Club(
-                    name=verified_club_name,
-                    description="A verified Hack Club - update your club details in the dashboard",
-                    leader_id=user.id
-                )
-                club.generate_join_code()
-                db.session.add(club)
-
             db.session.commit()
 
             # Clear Slack signup data and log user in
@@ -1810,6 +1811,92 @@ def send_leader_verification():
     email_verification_service.send_verification_email(leader_email, verification_code, verified_club_name)
     
     return jsonify({'success': True, 'message': f'Verification code sent to {leader_email}'})
+
+@app.route('/api/send-slack-leader-verification', methods=['POST'])
+@limiter.limit("5 per hour")
+def send_slack_leader_verification():
+    pending_data = session.get('pending_leader_signup')
+    if not pending_data:
+        return jsonify({'error': 'No pending leader signup found'}), 400
+
+    leader_email = pending_data['leader_email']
+    club_name = pending_data['leader_club_name']
+
+    # Verify leader credentials with Airtable
+    verification_result = leader_verification_service.verify_leader(club_name, leader_email)
+    if not verification_result['verified']:
+        return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
+
+    # Generate and send verification code
+    verification_code = email_verification_service.generate_verification_code()
+    verified_club_name = verification_result['club_name']
+    
+    # Store the verification code
+    email_verification_service.store_verification_code(leader_email, verified_club_name, verification_code)
+    
+    # Send verification email
+    email_verification_service.send_verification_email(leader_email, verification_code, verified_club_name)
+    
+    return jsonify({'success': True, 'message': f'Verification code sent to {leader_email}'})
+
+@app.route('/api/complete-slack-leader-signup', methods=['POST'])
+@limiter.limit("10 per hour")
+def complete_slack_leader_signup():
+    pending_data = session.get('pending_leader_signup')
+    if not pending_data:
+        return jsonify({'error': 'No pending leader signup found'}), 400
+
+    data = request.get_json()
+    verification_code = data.get('verification_code')
+    leader_email = pending_data['leader_email']
+
+    if not verification_code:
+        return jsonify({'error': 'Verification code is required'}), 400
+
+    # Verify the email verification code
+    verified_club_name = email_verification_service.verify_code(leader_email, verification_code)
+    if not verified_club_name:
+        return jsonify({'error': 'Invalid or expired verification code'}), 400
+
+    try:
+        # Create the user account
+        user = User(
+            username=pending_data['username'],
+            email=pending_data['email'],
+            first_name=pending_data['first_name'],
+            last_name=pending_data['last_name'],
+            slack_user_id=pending_data['slack_user_id'],
+            birthday=datetime.strptime(pending_data['birthday'], '%Y-%m-%d').date() if pending_data['birthday'] else None
+        )
+        user.set_password(secrets.token_urlsafe(32))
+        db.session.add(user)
+        db.session.flush()
+
+        # Create the club
+        club = Club(
+            name=verified_club_name,
+            description="A verified Hack Club - update your club details in the dashboard",
+            leader_id=user.id
+        )
+        club.generate_join_code()
+        db.session.add(club)
+        db.session.commit()
+
+        # Clean up sessions
+        session.pop('pending_leader_signup', None)
+        if leader_email in email_verification_service.verification_codes:
+            del email_verification_service.verification_codes[leader_email]
+
+        # Log user in
+        login_user(user)
+        user.last_login = datetime.utcnow()
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': f'Club "{verified_club_name}" created successfully!'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to create account and club: {str(e)}'}), 500
 
 @app.route('/api/create-club', methods=['POST'])
 @login_required
