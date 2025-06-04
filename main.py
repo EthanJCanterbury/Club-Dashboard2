@@ -3,6 +3,8 @@ import time
 import json
 import hashlib
 import requests
+import re
+import html
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, render_template, redirect, flash, request, jsonify, url_for, abort, session, Response
@@ -22,6 +24,144 @@ try:
     session_available = True
 except ImportError:
     session_available = False
+
+# Input validation and sanitization utilities
+class InputValidator:
+    
+    # Regex patterns for validation
+    USERNAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{3,30}$')
+    EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+    NAME_PATTERN = re.compile(r'^[a-zA-Z\s\'-]{1,50}$')
+    URL_PATTERN = re.compile(r'^https?://[^\s<>"]{1,500}$')
+    CLUB_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9\s\'-]{4,100}$')
+    VERIFICATION_CODE_PATTERN = re.compile(r'^[0-9]{6}$')
+    TIME_PATTERN = re.compile(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
+    DATE_PATTERN = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+    JOIN_CODE_PATTERN = re.compile(r'^[A-Z0-9]{8}$')
+    
+    @staticmethod
+    def sanitize_text(text):
+        """Sanitize text input to prevent XSS"""
+        if not text:
+            return text
+        return html.escape(str(text).strip())
+    
+    @staticmethod
+    def validate_username(username):
+        """Validate username format"""
+        if not username:
+            return False, "Username is required"
+        username = username.strip()
+        if not InputValidator.USERNAME_PATTERN.match(username):
+            return False, "Username must be 3-30 characters and contain only letters, numbers, hyphens, and underscores"
+        return True, username
+    
+    @staticmethod
+    def validate_email(email):
+        """Validate email format"""
+        if not email:
+            return False, "Email is required"
+        email = email.strip().lower()
+        if not InputValidator.EMAIL_PATTERN.match(email):
+            return False, "Invalid email format"
+        return True, email
+    
+    @staticmethod
+    def validate_name(name, field_name="Name"):
+        """Validate name fields"""
+        if not name:
+            return False, f"{field_name} is required"
+        name = name.strip()
+        if not InputValidator.NAME_PATTERN.match(name):
+            return False, f"{field_name} can only contain letters, spaces, hyphens, and apostrophes"
+        return True, name
+    
+    @staticmethod
+    def validate_url(url, field_name="URL"):
+        """Validate URL format"""
+        if not url:
+            return False, f"{field_name} is required"
+        url = url.strip()
+        if not InputValidator.URL_PATTERN.match(url):
+            return False, f"Invalid {field_name} format. Must be a valid HTTP/HTTPS URL"
+        return True, url
+    
+    @staticmethod
+    def validate_club_name(club_name):
+        """Validate club name format"""
+        if not club_name:
+            return False, "Club name is required"
+        club_name = club_name.strip()
+        if not InputValidator.CLUB_NAME_PATTERN.match(club_name):
+            return False, "Club name must be 4-100 characters and contain only letters, numbers, spaces, hyphens, and apostrophes"
+        return True, club_name
+    
+    @staticmethod
+    def validate_verification_code(code):
+        """Validate verification code format"""
+        if not code:
+            return False, "Verification code is required"
+        code = code.strip()
+        if not InputValidator.VERIFICATION_CODE_PATTERN.match(code):
+            return False, "Verification code must be 6 digits"
+        return True, code
+    
+    @staticmethod
+    def validate_date(date_str, field_name="Date"):
+        """Validate date format"""
+        if not date_str:
+            return False, f"{field_name} is required"
+        date_str = date_str.strip()
+        if not InputValidator.DATE_PATTERN.match(date_str):
+            return False, f"Invalid {field_name} format. Use YYYY-MM-DD"
+        try:
+            datetime.strptime(date_str, '%Y-%m-%d')
+            return True, date_str
+        except ValueError:
+            return False, f"Invalid {field_name}"
+    
+    @staticmethod
+    def validate_time(time_str, field_name="Time"):
+        """Validate time format"""
+        if not time_str:
+            return False, f"{field_name} is required"
+        time_str = time_str.strip()
+        if not InputValidator.TIME_PATTERN.match(time_str):
+            return False, f"Invalid {field_name} format. Use HH:MM"
+        return True, time_str
+    
+    @staticmethod
+    def validate_text_content(text, min_length=1, max_length=5000, field_name="Text"):
+        """Validate text content"""
+        if not text:
+            return False, f"{field_name} is required"
+        text = text.strip()
+        if len(text) < min_length:
+            return False, f"{field_name} must be at least {min_length} characters"
+        if len(text) > max_length:
+            return False, f"{field_name} must be no more than {max_length} characters"
+        return True, InputValidator.sanitize_text(text)
+    
+    @staticmethod
+    def validate_password(password):
+        """Validate password strength"""
+        if not password:
+            return False, "Password is required"
+        if len(password) < 6:
+            return False, "Password must be at least 6 characters long"
+        if len(password) > 128:
+            return False, "Password must be no more than 128 characters long"
+        return True, password
+    
+    @staticmethod
+    def validate_join_code(join_code):
+        """Validate join code format"""
+        if not join_code:
+            return False, "Join code is required"
+        join_code = join_code.strip().upper()
+        if not InputValidator.JOIN_CODE_PATTERN.match(join_code):
+            return False, "Invalid join code format"
+        return True, join_code
 
 def get_database_url():
     url = os.getenv('DATABASE_URL')
@@ -787,18 +927,35 @@ def complete_slack_signup():
         birthday = data.get('birthday', '').strip()
         email = data.get('email', slack_data.get('email', '')).strip()
         is_leader = data.get('is_leader', False)
-        leader_email = data.get('leader_email')
-        leader_club_name = data.get('leader_club_name')
+        leader_email = data.get('leader_email', '').strip() if data.get('leader_email') else None
+        leader_club_name = data.get('leader_club_name', '').strip() if data.get('leader_club_name') else None
 
-        # Validation
-        if not username or len(username) < 3:
-            return jsonify({'error': 'Username must be at least 3 characters long'}), 400
+        # Validate username
+        valid, username = InputValidator.validate_username(username)
+        if not valid:
+            return jsonify({'error': username}), 400
 
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
+        # Validate email
+        valid, email = InputValidator.validate_email(email)
+        if not valid:
+            return jsonify({'error': email}), 400
 
-        if not first_name:
-            return jsonify({'error': 'First name is required'}), 400
+        # Validate first name
+        valid, first_name = InputValidator.validate_name(first_name, "First name")
+        if not valid:
+            return jsonify({'error': first_name}), 400
+
+        # Validate last name if provided
+        if last_name:
+            valid, last_name = InputValidator.validate_name(last_name, "Last name")
+            if not valid:
+                return jsonify({'error': last_name}), 400
+
+        # Validate birthday if provided
+        if birthday:
+            valid, birthday = InputValidator.validate_date(birthday, "Birthday")
+            if not valid:
+                return jsonify({'error': birthday}), 400
 
         # Check if username or email is already taken (case-insensitive)
         if User.query.filter(db.func.lower(User.username) == username.lower()).first():
@@ -809,15 +966,20 @@ def complete_slack_signup():
 
         # Verify leader if they want to create a club
         if is_leader:
-            if not leader_email or not leader_club_name:
-                return jsonify({'error': 'Leader email and club name are required for club creation'}), 400
+            # Validate leader email
+            valid, leader_email = InputValidator.validate_email(leader_email)
+            if not valid:
+                return jsonify({'error': f'Leader {leader_email}'}), 400
+
+            # Validate club name
+            valid, leader_club_name = InputValidator.validate_club_name(leader_club_name)
+            if not valid:
+                return jsonify({'error': leader_club_name}), 400
             
-            verification_code = data.get('verification_code')
-            if not verification_code:
-                return jsonify({'error': 'Verification code is required for club creation'}), 400
-            
-            if len(verification_code) != 6:
-                return jsonify({'error': 'Verification code must be 6 digits'}), 400
+            verification_code = data.get('verification_code', '').strip()
+            valid, verification_code = InputValidator.validate_verification_code(verification_code)
+            if not valid:
+                return jsonify({'error': verification_code}), 400
             
             verification_result = leader_verification_service.verify_code(leader_email, verification_code)
             if not verification_result['verified']:
@@ -886,8 +1048,20 @@ def login():
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        email_or_username = request.form.get('email')
-        password = request.form.get('password')
+        email_or_username = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+
+        # Basic validation
+        if not email_or_username:
+            flash('Email or username is required', 'error')
+            return render_template('login.html')
+
+        if not password:
+            flash('Password is required', 'error')
+            return render_template('login.html')
+
+        # Sanitize email/username input
+        email_or_username = InputValidator.sanitize_text(email_or_username)
 
         try:
             # Try to find user by email or username (case-insensitive)
@@ -923,15 +1097,53 @@ def signup():
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
-        birthday = request.form.get('birthday')
+        # Get and validate input data
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        first_name = request.form.get('first_name', '').strip()
+        last_name = request.form.get('last_name', '').strip()
+        birthday = request.form.get('birthday', '').strip()
         is_leader = request.form.get('is_leader') == 'on'
-        leader_email = request.form.get('leader_email')
-        leader_club_name = request.form.get('leader_club_name')
+        leader_email = request.form.get('leader_email', '').strip()
+        leader_club_name = request.form.get('leader_club_name', '').strip()
+
+        # Validate username
+        valid, username = InputValidator.validate_username(username)
+        if not valid:
+            flash(username, 'error')
+            return render_template('signup.html')
+
+        # Validate email
+        valid, email = InputValidator.validate_email(email)
+        if not valid:
+            flash(email, 'error')
+            return render_template('signup.html')
+
+        # Validate password
+        valid, password_msg = InputValidator.validate_password(password)
+        if not valid:
+            flash(password_msg, 'error')
+            return render_template('signup.html')
+
+        # Validate names
+        valid, first_name = InputValidator.validate_name(first_name, "First name")
+        if not valid:
+            flash(first_name, 'error')
+            return render_template('signup.html')
+
+        if last_name:
+            valid, last_name = InputValidator.validate_name(last_name, "Last name")
+            if not valid:
+                flash(last_name, 'error')
+                return render_template('signup.html')
+
+        # Validate birthday
+        if birthday:
+            valid, birthday = InputValidator.validate_date(birthday, "Birthday")
+            if not valid:
+                flash(birthday, 'error')
+                return render_template('signup.html')
 
         try:
             if User.query.filter(db.func.lower(User.email) == email.lower()).first():
@@ -944,17 +1156,22 @@ def signup():
 
             # Verify leader if they want to create a club
             if is_leader:
-                if not leader_email or not leader_club_name:
-                    flash('Leader email and club name are required for club creation', 'error')
+                # Validate leader email
+                valid, leader_email = InputValidator.validate_email(leader_email)
+                if not valid:
+                    flash(f'Leader {leader_email}', 'error')
+                    return render_template('signup.html')
+
+                # Validate club name
+                valid, leader_club_name = InputValidator.validate_club_name(leader_club_name)
+                if not valid:
+                    flash(leader_club_name, 'error')
                     return render_template('signup.html')
                 
-                verification_code = request.form.get('verification_code')
-                if not verification_code:
-                    flash('Verification code is required for club creation', 'error')
-                    return render_template('signup.html')
-                
-                if len(verification_code) != 6:
-                    flash('Verification code must be 6 digits', 'error')
+                verification_code = request.form.get('verification_code', '').strip()
+                valid, verification_code = InputValidator.validate_verification_code(verification_code)
+                if not valid:
+                    flash(verification_code, 'error')
                     return render_template('signup.html')
                 
                 verification_result = leader_verification_service.verify_code(leader_email, verification_code)
@@ -962,7 +1179,13 @@ def signup():
                     flash(f'Leader verification failed: {verification_result["error"]}', 'error')
                     return render_template('signup.html')
 
-            user = User(username=username, email=email, first_name=first_name, last_name=last_name, birthday=datetime.strptime(birthday, '%Y-%m-%d').date() if birthday else None)
+            user = User(
+                username=username, 
+                email=email, 
+                first_name=first_name, 
+                last_name=last_name if last_name else None, 
+                birthday=datetime.strptime(birthday, '%Y-%m-%d').date() if birthday else None
+            )
             user.set_password(password)
             db.session.add(user)
             db.session.flush()
@@ -971,7 +1194,7 @@ def signup():
                 # Use verified club name from Airtable
                 verified_club_name = verification_result['club_name']
                 club = Club(
-                    name=verified_club_name,
+                    name=InputValidator.sanitize_text(verified_club_name),
                     description="A verified Hack Club - update your club details in the dashboard",
                     leader_id=user.id
                 )
@@ -1048,9 +1271,12 @@ def club_dashboard(club_id=None):
 
 @app.route('/join-club')
 def join_club_redirect():
-    join_code = request.args.get('code')
-    if not join_code:
-        flash('Invalid join code', 'error')
+    join_code = request.args.get('code', '').strip()
+    
+    # Validate join code
+    valid, join_code = InputValidator.validate_join_code(join_code)
+    if not valid:
+        flash('Invalid join code format', 'error')
         return redirect(url_for('dashboard'))
 
     if current_user.is_authenticated:
@@ -1114,10 +1340,12 @@ def club_posts(club_id):
 
     if request.method == 'POST':
         data = request.get_json()
-        content = data.get('content')
+        content = data.get('content', '').strip()
 
-        if not content:
-            return jsonify({'error': 'Content is required'}), 400
+        # Validate content
+        valid, content = InputValidator.validate_text_content(content, min_length=1, max_length=2000, field_name="Post content")
+        if not valid:
+            return jsonify({'error': content}), 400
 
         post = ClubPost(
             club_id=club_id,
@@ -1165,11 +1393,31 @@ def club_assignments(club_id):
 
         data = request.get_json()
 
+        # Validate title
+        title = data.get('title', '').strip()
+        valid, title = InputValidator.validate_text_content(title, min_length=1, max_length=200, field_name="Assignment title")
+        if not valid:
+            return jsonify({'error': title}), 400
+
+        # Validate description
+        description = data.get('description', '').strip()
+        valid, description = InputValidator.validate_text_content(description, min_length=1, max_length=5000, field_name="Assignment description")
+        if not valid:
+            return jsonify({'error': description}), 400
+
+        # Validate due date if provided
+        due_date = None
+        if data.get('due_date'):
+            try:
+                due_date = datetime.fromisoformat(data.get('due_date'))
+            except ValueError:
+                return jsonify({'error': 'Invalid due date format'}), 400
+
         assignment = ClubAssignment(
             club_id=club_id,
-            title=data.get('title'),
-            description=data.get('description'),
-            due_date=datetime.fromisoformat(data.get('due_date')) if data.get('due_date') else None,
+            title=title,
+            description=description,
+            due_date=due_date,
             for_all_members=data.get('for_all_members', True)
         )
         db.session.add(assignment)
@@ -1213,15 +1461,66 @@ def club_meetings(club_id):
 
         data = request.get_json()
 
+        # Validate title
+        title = data.get('title', '').strip()
+        valid, title = InputValidator.validate_text_content(title, min_length=1, max_length=200, field_name="Meeting title")
+        if not valid:
+            return jsonify({'error': title}), 400
+
+        # Validate description
+        description = data.get('description', '').strip()
+        if description:
+            valid, description = InputValidator.validate_text_content(description, min_length=0, max_length=2000, field_name="Meeting description")
+            if not valid:
+                return jsonify({'error': description}), 400
+
+        # Validate meeting date
+        meeting_date_str = data.get('meeting_date', '').strip()
+        valid, meeting_date_str = InputValidator.validate_date(meeting_date_str, "Meeting date")
+        if not valid:
+            return jsonify({'error': meeting_date_str}), 400
+
+        # Validate start time
+        start_time = data.get('start_time', '').strip()
+        valid, start_time = InputValidator.validate_time(start_time, "Start time")
+        if not valid:
+            return jsonify({'error': start_time}), 400
+
+        # Validate end time if provided
+        end_time = data.get('end_time', '').strip()
+        if end_time:
+            valid, end_time = InputValidator.validate_time(end_time, "End time")
+            if not valid:
+                return jsonify({'error': end_time}), 400
+
+        # Validate location if provided
+        location = data.get('location', '').strip()
+        if location:
+            valid, location = InputValidator.validate_text_content(location, min_length=0, max_length=255, field_name="Location")
+            if not valid:
+                return jsonify({'error': location}), 400
+
+        # Validate meeting link if provided
+        meeting_link = data.get('meeting_link', '').strip()
+        if meeting_link:
+            valid, meeting_link = InputValidator.validate_url(meeting_link, "Meeting link")
+            if not valid:
+                return jsonify({'error': meeting_link}), 400
+
+        try:
+            meeting_date = datetime.strptime(meeting_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'error': 'Invalid meeting date'}), 400
+
         meeting = ClubMeeting(
             club_id=club_id,
-            title=data.get('title'),
-            description=data.get('description'),
-            meeting_date=datetime.strptime(data.get('meeting_date'), '%Y-%m-%d').date(),
-            start_time=data.get('start_time'),
-            end_time=data.get('end_time'),
-            location=data.get('location'),
-            meeting_link=data.get('meeting_link')
+            title=title,
+            description=description,
+            meeting_date=meeting_date,
+            start_time=start_time,
+            end_time=end_time if end_time else None,
+            location=location if location else None,
+            meeting_link=meeting_link if meeting_link else None
         )
         db.session.add(meeting)
         db.session.commit()
@@ -1419,33 +1718,99 @@ def pizza_grants(club_id):
             else:
                 member_user = current_user
 
-            # Handle screenshot upload (for now, we'll just note it was provided)
-            screenshot_url = "Screenshot provided" if data.get('screenshot') else ""
+            # Validate required fields
+            project_name = data.get('project_name', '').strip()
+            valid, project_name = InputValidator.validate_text_content(project_name, min_length=1, max_length=200, field_name="Project name")
+            if not valid:
+                return jsonify({'error': project_name}), 400
+
+            first_name = data.get('first_name', '').strip()
+            valid, first_name = InputValidator.validate_name(first_name, "First name")
+            if not valid:
+                return jsonify({'error': first_name}), 400
+
+            last_name = data.get('last_name', '').strip()
+            valid, last_name = InputValidator.validate_name(last_name, "Last name")
+            if not valid:
+                return jsonify({'error': last_name}), 400
+
+            email = data.get('email', '').strip()
+            valid, email = InputValidator.validate_email(email)
+            if not valid:
+                return jsonify({'error': email}), 400
+
+            project_description = data.get('project_description', '').strip()
+            valid, project_description = InputValidator.validate_text_content(project_description, min_length=10, max_length=2000, field_name="Project description")
+            if not valid:
+                return jsonify({'error': project_description}), 400
+
+            github_url = data.get('github_url', '').strip()
+            valid, github_url = InputValidator.validate_url(github_url, "GitHub URL")
+            if not valid:
+                return jsonify({'error': github_url}), 400
+
+            live_url = data.get('live_url', '').strip()
+            valid, live_url = InputValidator.validate_url(live_url, "Live URL")
+            if not valid:
+                return jsonify({'error': live_url}), 400
+
+            # Validate optional fields
+            birthday = data.get('birthday', '').strip()
+            if birthday:
+                valid, birthday = InputValidator.validate_date(birthday, "Birthday")
+                if not valid:
+                    return jsonify({'error': birthday}), 400
+
+            learning = data.get('learning', '').strip()
+            if learning:
+                valid, learning = InputValidator.validate_text_content(learning, min_length=1, max_length=1000, field_name="Learning")
+                if not valid:
+                    return jsonify({'error': learning}), 400
+
+            doing_well = data.get('doing_well', '').strip()
+            if doing_well:
+                valid, doing_well = InputValidator.validate_text_content(doing_well, min_length=1, max_length=1000, field_name="What we're doing well")
+                if not valid:
+                    return jsonify({'error': doing_well}), 400
+
+            improve = data.get('improve', '').strip()
+            if improve:
+                valid, improve = InputValidator.validate_text_content(improve, min_length=1, max_length=1000, field_name="How to improve")
+                if not valid:
+                    return jsonify({'error': improve}), 400
+
+            # Validate project hours
+            try:
+                project_hours = float(data.get('project_hours', 0))
+                if project_hours < 0 or project_hours > 1000:
+                    return jsonify({'error': 'Project hours must be between 0 and 1000'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid project hours'}), 400
 
             # Submit to Airtable with all required fields
             submission_data = {
-                'project_name': data.get('project_name', ''),
-                'first_name': data.get('first_name', ''),
-                'last_name': data.get('last_name', ''),
+                'project_name': project_name,
+                'first_name': first_name,
+                'last_name': last_name,
                 'username': member_user.username,
-                'email': data.get('email', ''),
-                'birthday': data.get('birthday', ''),
-                'project_description': data.get('project_description', ''),
-                'github_url': data.get('github_url', ''),
-                'live_url': data.get('live_url', ''),
-                'learning': data.get('learning', ''),
-                'doing_well': data.get('doing_well', ''),
-                'improve': data.get('improve', ''),
-                'address_1': data.get('address_1', ''),
-                'address_2': data.get('address_2', ''),
-                'city': data.get('city', ''),
-                'state': data.get('state', ''),
-                'zip': data.get('zip', ''),
-                'country': data.get('country', ''),
+                'email': email,
+                'birthday': birthday,
+                'project_description': project_description,
+                'github_url': github_url,
+                'live_url': live_url,
+                'learning': learning,
+                'doing_well': doing_well,
+                'improve': improve,
+                'address_1': InputValidator.sanitize_text(data.get('address_1', '')),
+                'address_2': InputValidator.sanitize_text(data.get('address_2', '')),
+                'city': InputValidator.sanitize_text(data.get('city', '')),
+                'state': InputValidator.sanitize_text(data.get('state', '')),
+                'zip': InputValidator.sanitize_text(data.get('zip', '')),
+                'country': InputValidator.sanitize_text(data.get('country', '')),
                 'club_name': club.name,
                 'leader_email': club.leader.email,
-                'project_hours': data.get('project_hours', 0),
-                'screenshot_url': data.get('screenshot_url', '')
+                'project_hours': project_hours,
+                'screenshot_url': InputValidator.sanitize_text(data.get('screenshot_url', ''))
             }
 
             result = airtable_service.log_pizza_grant(submission_data)
@@ -1523,14 +1888,44 @@ def get_user_data(user_id):
 def update_user():
     data = request.get_json()
 
-    username = data.get('username')
-    email = data.get('email')
-    first_name = data.get('first_name')
-    last_name = data.get('last_name')
-    birthday = data.get('birthday')
+    username = data.get('username', '').strip() if data.get('username') else None
+    email = data.get('email', '').strip() if data.get('email') else None
+    first_name = data.get('first_name', '').strip() if data.get('first_name') else None
+    last_name = data.get('last_name', '').strip() if data.get('last_name') else None
+    birthday = data.get('birthday', '').strip() if data.get('birthday') else None
     current_password = data.get('current_password')
     new_password = data.get('new_password')
-    hackatime_api_key = data.get('hackatime_api_key')
+    hackatime_api_key = data.get('hackatime_api_key', '').strip() if data.get('hackatime_api_key') else None
+
+    # Validate username if provided
+    if username:
+        valid, username = InputValidator.validate_username(username)
+        if not valid:
+            return jsonify({'error': username}), 400
+
+    # Validate email if provided
+    if email:
+        valid, email = InputValidator.validate_email(email)
+        if not valid:
+            return jsonify({'error': email}), 400
+
+    # Validate first name if provided
+    if first_name:
+        valid, first_name = InputValidator.validate_name(first_name, "First name")
+        if not valid:
+            return jsonify({'error': first_name}), 400
+
+    # Validate last name if provided
+    if last_name:
+        valid, last_name = InputValidator.validate_name(last_name, "Last name")
+        if not valid:
+            return jsonify({'error': last_name}), 400
+
+    # Validate birthday if provided
+    if birthday:
+        valid, birthday = InputValidator.validate_date(birthday, "Birthday")
+        if not valid:
+            return jsonify({'error': birthday}), 400
 
     # Check if username is taken by another user (case-insensitive)
     if username and username.lower() != current_user.username.lower():
@@ -1550,18 +1945,23 @@ def update_user():
     if email:
         current_user.email = email
     if first_name is not None:
-        current_user.first_name = first_name.strip() if first_name.strip() else None
+        current_user.first_name = first_name if first_name else None
     if last_name is not None:
-        current_user.last_name = last_name.strip() if last_name.strip() else None
+        current_user.last_name = last_name if last_name else None
     if birthday is not None:
         current_user.birthday = datetime.strptime(birthday, '%Y-%m-%d').date() if birthday else None
     if hackatime_api_key is not None:
-        current_user.hackatime_api_key = hackatime_api_key if hackatime_api_key.strip() else None
+        current_user.hackatime_api_key = InputValidator.sanitize_text(hackatime_api_key) if hackatime_api_key else None
 
     # Update password if provided
     if new_password:
         if not current_password:
             return jsonify({'error': 'Current password required to change password'}), 400
+        
+        valid, password_msg = InputValidator.validate_password(new_password)
+        if not valid:
+            return jsonify({'error': password_msg}), 400
+            
         if not current_user.check_password(current_password):
             return jsonify({'error': 'Current password is incorrect'}), 400
         current_user.set_password(new_password)
