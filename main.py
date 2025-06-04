@@ -285,20 +285,36 @@ class GmailService:
                 return
             
             credentials_info = json.loads(credentials_json)
+            
+            # Check if this is a service account
+            if credentials_info.get('type') != 'service_account':
+                print("Gmail credentials must be for a service account")
+                return
+            
             credentials = service_account.Credentials.from_service_account_info(
                 credentials_info,
                 scopes=['https://www.googleapis.com/auth/gmail.send']
             )
             
-            # Delegate to the sender email for domain-wide delegation
+            # For domain-wide delegation, delegate to the sender email
             if self.sender_email:
-                credentials = credentials.with_subject(self.sender_email)
+                try:
+                    credentials = credentials.with_subject(self.sender_email)
+                    print(f"Setting up domain-wide delegation for {self.sender_email}")
+                except Exception as e:
+                    print(f"Domain-wide delegation setup failed: {str(e)}")
+                    print("Make sure domain-wide delegation is enabled for this service account")
+                    return
+            else:
+                print("No GMAIL_SENDER_EMAIL configured")
+                return
             
             self.service = build('gmail', 'v1', credentials=credentials)
             print("Gmail service initialized successfully")
             
         except Exception as e:
             print(f"Failed to initialize Gmail service: {str(e)}")
+            print("Check your GMAIL_CREDENTIALS_JSON and ensure domain-wide delegation is set up")
             self.service = None
     
     def send_email(self, to_email, subject, body):
