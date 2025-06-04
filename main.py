@@ -266,6 +266,71 @@ class AirtableService:
 
 airtable_service = AirtableService()
 
+# Gmail API Service
+class GmailService:
+    def __init__(self):
+        self.service = None
+        self.sender_email = os.environ.get('GMAIL_SENDER_EMAIL')
+        self._initialize_service()
+    
+    def _initialize_service(self):
+        try:
+            import json
+            from google.oauth2 import service_account
+            from googleapiclient.discovery import build
+            
+            credentials_json = os.environ.get('GMAIL_CREDENTIALS_JSON')
+            if not credentials_json:
+                print("No Gmail credentials found")
+                return
+            
+            credentials_info = json.loads(credentials_json)
+            credentials = service_account.Credentials.from_service_account_info(
+                credentials_info,
+                scopes=['https://www.googleapis.com/auth/gmail.send']
+            )
+            
+            # Delegate to the sender email for domain-wide delegation
+            if self.sender_email:
+                credentials = credentials.with_subject(self.sender_email)
+            
+            self.service = build('gmail', 'v1', credentials=credentials)
+            print("Gmail service initialized successfully")
+            
+        except Exception as e:
+            print(f"Failed to initialize Gmail service: {str(e)}")
+            self.service = None
+    
+    def send_email(self, to_email, subject, body):
+        if not self.service or not self.sender_email:
+            print(f"Gmail not configured - would send to {to_email}: {subject}")
+            return False
+        
+        try:
+            import base64
+            from email.mime.text import MIMEText
+            
+            message = MIMEText(body, 'html')
+            message['to'] = to_email
+            message['from'] = self.sender_email
+            message['subject'] = subject
+            
+            raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+            
+            send_message = self.service.users().messages().send(
+                userId='me',
+                body={'raw': raw_message}
+            ).execute()
+            
+            print(f"Email sent successfully to {to_email}")
+            return True
+            
+        except Exception as e:
+            print(f"Failed to send email to {to_email}: {str(e)}")
+            return False
+
+gmail_service = GmailService()
+
 # Email Verification Service
 class EmailVerificationService:
     def __init__(self):
@@ -297,8 +362,48 @@ class EmailVerificationService:
         return False
     
     def send_verification_email(self, email, code, club_name):
-        # For now, just print the code (in production, integrate with Gmail API)
-        print(f"Verification code for {email}: {code} (Club: {club_name})")
+        subject = f"Verify your Hack Club leadership - {club_name}"
+        
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #ec3750 0%, #ff6b7a 100%); color: white; padding: 30px; border-radius: 16px; text-align: center; margin-bottom: 30px;">
+                <h1 style="margin: 0; font-size: 28px;">🏴‍☠️ Hack Club Verification</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Verify your club leadership</p>
+            </div>
+            
+            <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
+                <h2 style="color: #1a202c; margin: 0 0 15px 0;">Welcome, Club Leader!</h2>
+                <p style="color: #4a5568; line-height: 1.6; margin: 0 0 20px 0;">
+                    You're creating a club dashboard for <strong>{club_name}</strong>. 
+                    To verify that you own this email address, please enter the verification code below:
+                </p>
+                
+                <div style="background: white; border: 2px solid #ec3750; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0;">
+                    <div style="color: #666; font-size: 14px; margin-bottom: 8px;">Your verification code is:</div>
+                    <div style="font-size: 32px; font-weight: bold; color: #ec3750; letter-spacing: 8px; font-family: monospace;">
+                        {code}
+                    </div>
+                </div>
+                
+                <p style="color: #718096; font-size: 14px; margin: 20px 0 0 0;">
+                    This code will expire in 10 minutes. If you didn't request this verification, you can safely ignore this email.
+                </p>
+            </div>
+            
+            <div style="text-align: center; color: #a0aec0; font-size: 14px;">
+                <p>Need help? Contact us at <a href="mailto:support@hackclub.com" style="color: #ec3750;">support@hackclub.com</a></p>
+                <p style="margin: 10px 0 0 0;">This email was sent from the Hack Club Dashboard</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        success = gmail_service.send_email(email, subject, body)
+        if not success:
+            # Fallback to console if Gmail fails
+            print(f"Verification code for {email}: {code} (Club: {club_name})")
+        
         return True
 
 email_verification_service = EmailVerificationService()
