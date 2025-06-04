@@ -217,7 +217,65 @@ function toggleLeaderFields() {
         leaderFields.style.display = 'none';
         leaderEmail.required = false;
         leaderClubName.required = false;
+        document.getElementById('emailStep').style.display = 'block';
+        document.getElementById('verificationStep').style.display = 'none';
     }
+}
+
+function sendVerificationEmail() {
+    const email = document.getElementById('leaderEmail').value;
+    const clubName = document.getElementById('leaderClubName').value;
+    const errorDiv = document.getElementById('verificationError');
+    const successDiv = document.getElementById('verificationSuccess');
+
+    errorDiv.style.display = 'none';
+    successDiv.style.display = 'none';
+
+    if (!email || !clubName) {
+        errorDiv.textContent = 'Please fill in all fields';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    if (clubName.length < 4) {
+        errorDiv.textContent = 'Club name must be at least 4 characters';
+        errorDiv.style.display = 'block';
+        return;
+    }
+
+    fetch('/api/send-verification-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            leader_email: email,
+            leader_club_name: clubName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('emailStep').style.display = 'none';
+            document.getElementById('verificationStep').style.display = 'block';
+            document.getElementById('verificationMessage').textContent = data.message;
+            window.verifiedClubName = data.club_name;
+        } else {
+            errorDiv.textContent = data.error;
+            errorDiv.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        errorDiv.textContent = 'Network error occurred';
+        errorDiv.style.display = 'block';
+    });
+}
+
+function goBackToEmailStep() {
+    document.getElementById('emailStep').style.display = 'block';
+    document.getElementById('verificationStep').style.display = 'none';
+    document.getElementById('verificationError').style.display = 'none';
+    document.getElementById('verificationSuccess').style.display = 'none';
 }
 </script>
 {% endblock %}
@@ -277,19 +335,44 @@ function toggleLeaderFields() {
             <div id="leaderFields" style="display: none;">
                 <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
                     <h4 style="color: #856404; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Leader Verification Required</h4>
-                    <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club. We'll send a verification code to your email during signup.</p>
+                    <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club. We'll send a verification code to your email.</p>
                 </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Leader Email (as registered with Hack Club)</label>
-                    <input type="email" class="form-control" name="leader_email" placeholder="Enter your registered leader email">
+
+                <div id="emailStep">
+                    <div class="form-group">
+                        <label class="form-label">Leader Email (as registered with Hack Club)</label>
+                        <input type="email" class="form-control" name="leader_email" id="leaderEmail" placeholder="Enter your registered leader email">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Club Name (as registered with Hack Club)</label>
+                        <input type="text" class="form-control" name="leader_club_name" id="leaderClubName" placeholder="Enter your club name" minlength="4">
+                        <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
+                    </div>
+
+                    <button type="button" onclick="sendVerificationEmail()" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 0.875rem 1.5rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 1rem;">
+                        <i class="fas fa-envelope"></i> Send Verification Code
+                    </button>
                 </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Club Name (as registered with Hack Club)</label>
-                    <input type="text" class="form-control" name="leader_club_name" placeholder="Enter your club name" minlength="4">
-                    <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
+
+                <div id="verificationStep" style="display: none;">
+                    <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                        <h4 style="color: #155724; margin: 0 0 0.5rem 0; font-size: 0.9rem;">📧 Check Your Email</h4>
+                        <p style="color: #155724; margin: 0; font-size: 0.85rem;" id="verificationMessage">We've sent a 6-digit verification code to your email.</p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Verification Code</label>
+                        <input type="text" class="form-control" name="verification_code" id="verificationCode" placeholder="Enter 6-digit code" maxlength="6" style="text-align: center; letter-spacing: 0.2rem;">
+                    </div>
+
+                    <button type="button" onclick="goBackToEmailStep()" style="background: #6c757d; color: white; border: none; padding: 0.75rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 0.5rem;">
+                        ← Back to Email Step
+                    </button>
                 </div>
+
+                <div id="verificationError" style="color: #dc3545; margin-top: 1rem; display: none;"></div>
+                <div id="verificationSuccess" style="color: #28a745; margin-top: 1rem; display: none;"></div>
             </div>
             
             <button type="submit" class="btn-auth">

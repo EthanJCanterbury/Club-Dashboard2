@@ -889,7 +889,16 @@ def signup():
                     flash('Leader email and club name are required for club creation', 'error')
                     return render_template('signup.html')
                 
-                verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+                verification_code = request.form.get('verification_code')
+                if not verification_code:
+                    flash('Verification code is required for club creation', 'error')
+                    return render_template('signup.html')
+                
+                if len(verification_code) != 6:
+                    flash('Verification code must be 6 digits', 'error')
+                    return render_template('signup.html')
+                
+                verification_result = leader_verification_service.verify_code(leader_email, verification_code)
                 if not verification_result['verified']:
                     flash(f'Leader verification failed: {verification_result["error"]}', 'error')
                     return render_template('signup.html')
