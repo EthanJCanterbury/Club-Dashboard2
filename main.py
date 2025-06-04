@@ -369,11 +369,9 @@ class LeaderVerificationService:
             return {'verified': False, 'error': 'Verification service unavailable'}
 
         try:
-            # Search for verification with matching email and code (remove status filter)
+            # Search for verification with matching email and code
             params = {
-                'filterByFormula': f'AND({{Email}} = "{email}", {{Code}} = "{code}")',
-                'sort[0][field]': 'Created',
-                'sort[0][direction]': 'desc'
+                'filterByFormula': f'AND({{Email}} = "{email}", {{Code}} = "{code}")'
             }
             
             print(f"DEBUG: Verification lookup params: {params}")
