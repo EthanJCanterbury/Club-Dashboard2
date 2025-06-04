@@ -323,10 +323,12 @@ class LeaderVerificationService:
             verification_code = ''.join(secrets.choice(string.digits) for _ in range(6))
             
             # Store verification request in Airtable
+            # Clean the club name of any extra quotes
+            clean_club_name = str(verified_club_name).strip().strip('"\'')
             fields = {
                 'Email': email,
                 'Code': verification_code,
-                'Club': str(verified_club_name).strip('"'),
+                'Club': clean_club_name,
                 'User Name': user_name,
                 'Status': 'Pending',
                 'Created': datetime.utcnow().isoformat()
