@@ -288,9 +288,14 @@ class LeaderVerificationService:
             return {'success': False, 'error': 'Verification service unavailable'}
 
         try:
+            # Clean input club name first
+            clean_input_club_name = str(club_name).strip().strip('"\'')
+            print(f"DEBUG: Original club name: '{club_name}'")
+            print(f"DEBUG: Cleaned input club name: '{clean_input_club_name}'")
+            
             # First check if this is a valid leader
             params = {
-                'filterByFormula': f'AND(SEARCH(LOWER("{email}"), LOWER({{Current Leaders\' Emails}})), SEARCH(LOWER("{club_name[:4]}"), LOWER({{Venue}})))'
+                'filterByFormula': f'AND(SEARCH(LOWER("{email}"), LOWER({{Current Leaders\' Emails}})), SEARCH(LOWER("{clean_input_club_name[:4]}"), LOWER({{Venue}})))'
             }
             
             response = requests.get(self.base_url, headers=self.headers, params=params)
@@ -302,18 +307,18 @@ class LeaderVerificationService:
             records = data.get('records', [])
             
             leader_found = False
-            verified_club_name = club_name
+            verified_club_name = clean_input_club_name
             
             for record in records:
                 fields = record.get('fields', {})
                 venue = fields.get('Venue', '').lower()
                 emails = fields.get("Current Leaders' Emails", '').lower()
                 
-                if (club_name.lower()[:4] in venue and 
-                    len(club_name) >= 4 and 
+                if (clean_input_club_name.lower()[:4] in venue and 
+                    len(clean_input_club_name) >= 4 and 
                     email.lower() in emails):
                     leader_found = True
-                    verified_club_name = fields.get('Venue', club_name)
+                    verified_club_name = fields.get('Venue', clean_input_club_name)
                     break
             
             if not leader_found:
@@ -323,12 +328,15 @@ class LeaderVerificationService:
             verification_code = ''.join(secrets.choice(string.digits) for _ in range(6))
             
             # Store verification request in Airtable
-            # Clean the club name of any extra quotes
-            clean_club_name = str(verified_club_name).strip().strip('"\'')
+            # Clean the verified club name of any extra quotes and characters
+            final_club_name = str(verified_club_name).strip().strip('"\'').strip()
+            print(f"DEBUG: Verified club name: '{verified_club_name}'")
+            print(f"DEBUG: Final club name for Airtable: '{final_club_name}'")
+            
             fields = {
                 'Email': email,
                 'Code': verification_code,
-                'Club': clean_club_name,
+                'Club': final_club_name,
                 'User Name': user_name,
                 'Status': 'Pending',
                 'Created': datetime.utcnow().isoformat()
