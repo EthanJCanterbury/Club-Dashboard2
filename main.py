@@ -371,8 +371,8 @@ def check_auth_token():
     if not db_available or current_user.is_authenticated:
         return
     
-    # Skip token check for auth-related routes
-    if request.endpoint in ['login', 'signup', 'slack_login', 'slack_callback', 'complete_slack_signup', 'index']:
+    # Skip token check for auth-related routes (but not index)
+    if request.endpoint in ['login', 'signup', 'slack_login', 'slack_callback', 'complete_slack_signup']:
         return
     
     auth_token = request.cookies.get('auth_token')
