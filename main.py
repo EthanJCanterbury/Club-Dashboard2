@@ -318,7 +318,9 @@ class LeaderVerificationService:
                     len(clean_input_club_name) >= 4 and 
                     email.lower() in emails):
                     leader_found = True
-                    verified_club_name = fields.get('Venue', clean_input_club_name)
+                    # Clean the venue name from Airtable response too
+                    raw_venue = fields.get('Venue', clean_input_club_name)
+                    verified_club_name = str(raw_venue).strip().strip('"\'').strip()
                     break
             
             if not leader_found:
@@ -328,8 +330,13 @@ class LeaderVerificationService:
             verification_code = ''.join(secrets.choice(string.digits) for _ in range(6))
             
             # Store verification request in Airtable
-            # Clean the verified club name of any extra quotes and characters
-            final_club_name = str(verified_club_name).strip().strip('"\'').strip()
+            # Clean the verified club name thoroughly - remove all types of quotes
+            import re
+            final_club_name = str(verified_club_name).strip()
+            # Remove leading/trailing quotes of any type
+            final_club_name = re.sub(r'^["\']|["\']$', '', final_club_name).strip()
+            # Remove any remaining quote characters
+            final_club_name = final_club_name.replace('"', '').replace("'", '').strip()
             print(f"DEBUG: Verified club name: '{verified_club_name}'")
             print(f"DEBUG: Final club name for Airtable: '{final_club_name}'")
             
