@@ -7,7 +7,7 @@ COPY pyproject.toml ./
 COPY uv.lock* ./
 
 RUN pip install --no-cache-dir uv
-RUN uv pip install --system --no-cache flask flask-login flask-sqlalchemy requests psycopg2-binary werkzeug flask-limiter flask-session python-dotenv gunicorn
+RUN uv pip install --system --no-cache flask flask-login flask-sqlalchemy requests psycopg2-binary werkzeug flask-limiter flask-session python-dotenv gunicorn pyjwt
 
 COPY . .
 
