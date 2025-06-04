@@ -326,7 +326,7 @@ class LeaderVerificationService:
             fields = {
                 'Email': email,
                 'Code': verification_code,
-                'Club': verified_club_name,
+                'Club': str(verified_club_name).strip('"'),
                 'User Name': user_name,
                 'Status': 'Pending',
                 'Created': datetime.utcnow().isoformat()
