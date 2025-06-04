@@ -2100,20 +2100,6 @@ def test_airtable_connection():
         return jsonify({'error': f'Error testing Airtable: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    # Install required packages if not available
-    try:
-        import flask_limiter
-    except ImportError:
-        print("Installing Flask-Limiter...")
-        import subprocess
-        subprocess.check_call(['pip', 'install', 'Flask-Limiter'])
-        
-    try:
-        import flask_session
-    except ImportError:
-        print("Installing Flask-Session...")
-        import subprocess
-        subprocess.check_call(['pip', 'install', 'Flask-Session'])
         
     if db_available:
         try:
