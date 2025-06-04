@@ -386,9 +386,11 @@ def check_auth_token():
                     login_user(user, remember=True)
                     user.last_login = datetime.utcnow()
                     db.session.commit()
-                    # Force refresh the current_user object
-                    from flask_login import _get_user
-                    _get_user()
+                    
+                    # Force Flask-Login to reload the current_user for this request
+                    from flask_login import _request_ctx_stack
+                    if hasattr(_request_ctx_stack.top, 'user'):
+                        _request_ctx_stack.top.user = user
 
 def set_auth_cookie(response, user_id):
     """Set persistent auth cookie"""
