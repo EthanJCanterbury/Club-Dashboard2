@@ -1806,6 +1806,32 @@ def send_verification_email():
     else:
         return jsonify({'error': result['error']}), 400
 
+@app.route('/api/send-verification-email-signup', methods=['POST'])
+@limiter.limit("5 per hour")
+def send_verification_email_signup():
+    data = request.get_json()
+    leader_email = data.get('leader_email')
+    leader_club_name = data.get('leader_club_name')
+
+    if not leader_email or not leader_club_name:
+        return jsonify({'error': 'Leader email and club name are required'}), 400
+
+    # Send verification email - use a temporary username for signup
+    result = leader_verification_service.send_verification_email(
+        leader_email, 
+        leader_club_name, 
+        'New User (Signup)'
+    )
+    
+    if result['success']:
+        return jsonify({
+            'success': True,
+            'message': result['message'],
+            'club_name': result['club_name']
+        })
+    else:
+        return jsonify({'error': result['error']}), 400
+
 @app.route('/api/verify-leader-code', methods=['POST'])
 @login_required
 @limiter.limit("10 per hour")
