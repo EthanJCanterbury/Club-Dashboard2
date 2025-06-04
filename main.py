@@ -762,7 +762,14 @@ def complete_slack_signup():
             if not leader_email or not leader_club_name:
                 return jsonify({'error': 'Leader email and club name are required for club creation'}), 400
             
-            verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+            verification_code = data.get('verification_code')
+            if not verification_code:
+                return jsonify({'error': 'Verification code is required for club creation'}), 400
+            
+            if len(verification_code) != 6:
+                return jsonify({'error': 'Verification code must be 6 digits'}), 400
+            
+            verification_result = leader_verification_service.verify_code(leader_email, verification_code)
             if not verification_result['verified']:
                 return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
 
