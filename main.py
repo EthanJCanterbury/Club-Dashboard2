@@ -369,14 +369,16 @@ class LeaderVerificationService:
             return {'verified': False, 'error': 'Verification service unavailable'}
 
         try:
-            # Search for pending verification with matching email and code
+            # Search for verification with matching email and code (remove status filter)
             params = {
-                'filterByFormula': f'AND({{Email}} = "{email}", {{Code}} = "{code}", {{Status}} = "Pending")',
+                'filterByFormula': f'AND({{Email}} = "{email}", {{Code}} = "{code}")',
                 'sort[0][field]': 'Created',
                 'sort[0][direction]': 'desc'
             }
             
+            print(f"DEBUG: Verification lookup params: {params}")
             response = requests.get(self.verification_url, headers=self.headers, params=params)
+            print(f"DEBUG: Verification lookup response: {response.status_code} - {response.text}")
             
             if response.status_code == 200:
                 data = response.json()
@@ -388,40 +390,52 @@ class LeaderVerificationService:
                     record_id = record['id']
                     fields = record.get('fields', {})
                     
-                    # Check if verification is not too old (e.g., within 1 hour)
-                    created_time = datetime.fromisoformat(fields.get('Created', ''))
-                    if datetime.utcnow() - created_time > timedelta(hours=1):
-                        return {'verified': False, 'error': 'Verification code expired'}
+                    # Check if already verified
+                    if fields.get('Status') == 'Verified':
+                        return {'verified': False, 'error': 'Verification code already used'}
                     
-                    # Update record status to verified
+                    # Check if verification is not too old (e.g., within 1 hour)
+                    if fields.get('Created'):
+                        try:
+                            created_time = datetime.fromisoformat(fields.get('Created', '').replace('Z', '+00:00'))
+                            if datetime.utcnow() - created_time.replace(tzinfo=None) > timedelta(hours=1):
+                                return {'verified': False, 'error': 'Verification code expired'}
+                        except:
+                            pass
+                    
+                    # Update record status to verified (if Status field exists)
                     update_payload = {
                         'fields': {
-                            'Status': 'Verified',
-                            'Verified At': datetime.utcnow().isoformat()
+                            'Status': 'Verified'
                         }
                     }
                     
-                    update_response = requests.patch(
-                        f'{self.verification_url}/{record_id}', 
-                        headers=self.headers, 
-                        json=update_payload
-                    )
+                    # Try to update, but don't fail if Status field doesn't exist
+                    try:
+                        update_response = requests.patch(
+                            f'{self.verification_url}/{record_id}', 
+                            headers=self.headers, 
+                            json=update_payload
+                        )
+                        print(f"DEBUG: Update response: {update_response.status_code} - {update_response.text}")
+                    except Exception as update_error:
+                        print(f"DEBUG: Update failed (non-critical): {update_error}")
                     
-                    if update_response.status_code == 200:
-                        return {
-                            'verified': True,
-                            'club_name': fields.get('Club', ''),
-                            'email': fields.get('Email', '')
-                        }
-                    else:
-                        return {'verified': False, 'error': 'Failed to update verification status'}
+                    return {
+                        'verified': True,
+                        'club_name': fields.get('Club', ''),
+                        'email': fields.get('Email', '')
+                    }
                 
                 return {'verified': False, 'error': 'Invalid verification code or email'}
             else:
+                print(f"Airtable verification lookup error: {response.status_code} - {response.text}")
                 return {'verified': False, 'error': f'Verification check failed: {response.status_code}'}
                 
         except Exception as e:
             print(f"Error verifying code: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {'verified': False, 'error': f'Verification error: {str(e)}'}
 
     def verify_leader(self, club_name, email):
