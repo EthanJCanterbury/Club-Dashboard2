@@ -266,26 +266,155 @@ class AirtableService:
 
 airtable_service = AirtableService()
 
-# Leader Verification Service
+# Leader Verification Service with Email Verification
 class LeaderVerificationService:
     def __init__(self):
         self.api_token = os.environ.get('AIRTABLE_TOKEN')
         self.base_id = os.environ.get('AIRTABLE_BASE_ID', 'appSnnIu0BhjI3E1p')
         self.table_name = 'Club Leaders & Emails'
+        self.verification_table = 'Leader Verification'
         self.headers = {
             'Authorization': f'Bearer {self.api_token}',
             'Content-Type': 'application/json'
         }
         import urllib.parse
         encoded_table_name = urllib.parse.quote(self.table_name)
+        encoded_verification_table = urllib.parse.quote(self.verification_table)
         self.base_url = f'https://api.airtable.com/v0/{self.base_id}/{encoded_table_name}'
+        self.verification_url = f'https://api.airtable.com/v0/{self.base_id}/{encoded_verification_table}'
 
-    def verify_leader(self, club_name, email):
+    def send_verification_email(self, email, club_name, user_name):
+        if not self.api_token:
+            return {'success': False, 'error': 'Verification service unavailable'}
+
+        try:
+            # First check if this is a valid leader
+            params = {
+                'filterByFormula': f'AND(SEARCH(LOWER("{email}"), LOWER({{Current Leaders\' Emails}})), SEARCH(LOWER("{club_name[:4]}"), LOWER({{Venue}})))'
+            }
+            
+            response = requests.get(self.base_url, headers=self.headers, params=params)
+            
+            if response.status_code != 200:
+                return {'success': False, 'error': f'Verification failed: {response.status_code}'}
+            
+            data = response.json()
+            records = data.get('records', [])
+            
+            leader_found = False
+            verified_club_name = club_name
+            
+            for record in records:
+                fields = record.get('fields', {})
+                venue = fields.get('Venue', '').lower()
+                emails = fields.get("Current Leaders' Emails", '').lower()
+                
+                if (club_name.lower()[:4] in venue and 
+                    len(club_name) >= 4 and 
+                    email.lower() in emails):
+                    leader_found = True
+                    verified_club_name = fields.get('Venue', club_name)
+                    break
+            
+            if not leader_found:
+                return {'success': False, 'error': 'No matching club and email combination found'}
+
+            # Generate verification code
+            verification_code = ''.join(secrets.choice(string.digits) for _ in range(6))
+            
+            # Store verification request in Airtable
+            fields = {
+                'Email': email,
+                'Code': verification_code,
+                'Club': verified_club_name,
+                'User Name': user_name,
+                'Status': 'Pending',
+                'Created': datetime.utcnow().isoformat()
+            }
+
+            payload = {'records': [{'fields': fields}]}
+            verification_response = requests.post(self.verification_url, headers=self.headers, json=payload)
+
+            if verification_response.status_code in [200, 201]:
+                return {
+                    'success': True, 
+                    'message': f'Verification code sent to {email}',
+                    'club_name': verified_club_name
+                }
+            else:
+                print(f"Airtable verification error: {verification_response.status_code} - {verification_response.text}")
+                return {'success': False, 'error': 'Failed to send verification email'}
+                
+        except Exception as e:
+            print(f"Error sending verification email: {str(e)}")
+            return {'success': False, 'error': f'Verification error: {str(e)}'}
+
+    def verify_code(self, email, code):
         if not self.api_token:
             return {'verified': False, 'error': 'Verification service unavailable'}
 
         try:
-            # Search for records matching the email and club name
+            # Search for pending verification with matching email and code
+            params = {
+                'filterByFormula': f'AND({{Email}} = "{email}", {{Code}} = "{code}", {{Status}} = "Pending")',
+                'sort[0][field]': 'Created',
+                'sort[0][direction]': 'desc'
+            }
+            
+            response = requests.get(self.verification_url, headers=self.headers, params=params)
+            
+            if response.status_code == 200:
+                data = response.json()
+                records = data.get('records', [])
+                
+                if records:
+                    # Found matching verification record
+                    record = records[0]
+                    record_id = record['id']
+                    fields = record.get('fields', {})
+                    
+                    # Check if verification is not too old (e.g., within 1 hour)
+                    created_time = datetime.fromisoformat(fields.get('Created', ''))
+                    if datetime.utcnow() - created_time > timedelta(hours=1):
+                        return {'verified': False, 'error': 'Verification code expired'}
+                    
+                    # Update record status to verified
+                    update_payload = {
+                        'fields': {
+                            'Status': 'Verified',
+                            'Verified At': datetime.utcnow().isoformat()
+                        }
+                    }
+                    
+                    update_response = requests.patch(
+                        f'{self.verification_url}/{record_id}', 
+                        headers=self.headers, 
+                        json=update_payload
+                    )
+                    
+                    if update_response.status_code == 200:
+                        return {
+                            'verified': True,
+                            'club_name': fields.get('Club', ''),
+                            'email': fields.get('Email', '')
+                        }
+                    else:
+                        return {'verified': False, 'error': 'Failed to update verification status'}
+                
+                return {'verified': False, 'error': 'Invalid verification code or email'}
+            else:
+                return {'verified': False, 'error': f'Verification check failed: {response.status_code}'}
+                
+        except Exception as e:
+            print(f"Error verifying code: {str(e)}")
+            return {'verified': False, 'error': f'Verification error: {str(e)}'}
+
+    def verify_leader(self, club_name, email):
+        # Legacy method for backward compatibility
+        if not self.api_token:
+            return {'verified': False, 'error': 'Verification service unavailable'}
+
+        try:
             params = {
                 'filterByFormula': f'AND(SEARCH(LOWER("{email}"), LOWER({{Current Leaders\' Emails}})), SEARCH(LOWER("{club_name[:4]}"), LOWER({{Venue}})))'
             }
@@ -297,13 +426,11 @@ class LeaderVerificationService:
                 records = data.get('records', [])
                 
                 if records:
-                    # Found matching record - verify more strictly
                     for record in records:
                         fields = record.get('fields', {})
                         venue = fields.get('Venue', '').lower()
                         emails = fields.get("Current Leaders' Emails", '').lower()
                         
-                        # Check if at least 4 characters of club name match and email is found
                         if (club_name.lower()[:4] in venue and 
                             len(club_name) >= 4 and 
                             email.lower() in emails):
@@ -1636,10 +1763,10 @@ def upload_screenshot():
         print(f"Full traceback: {error_details}")
         return jsonify({'success': False, 'error': f'Upload error: {str(e)}'}), 500
 
-@app.route('/api/create-club', methods=['POST'])
+@app.route('/api/send-verification-email', methods=['POST'])
 @login_required
-@limiter.limit("10 per hour")
-def create_club():
+@limiter.limit("5 per hour")
+def send_verification_email():
     data = request.get_json()
     leader_email = data.get('leader_email')
     leader_club_name = data.get('leader_club_name')
@@ -1647,15 +1774,65 @@ def create_club():
     if not leader_email or not leader_club_name:
         return jsonify({'error': 'Leader email and club name are required'}), 400
 
+    # Send verification email
+    result = leader_verification_service.send_verification_email(
+        leader_email, 
+        leader_club_name, 
+        current_user.username
+    )
+    
+    if result['success']:
+        return jsonify({
+            'success': True,
+            'message': result['message'],
+            'club_name': result['club_name']
+        })
+    else:
+        return jsonify({'error': result['error']}), 400
+
+@app.route('/api/verify-leader-code', methods=['POST'])
+@login_required
+@limiter.limit("10 per hour")
+def verify_leader_code():
+    data = request.get_json()
+    leader_email = data.get('leader_email')
+    verification_code = data.get('verification_code')
+
+    if not leader_email or not verification_code:
+        return jsonify({'error': 'Email and verification code are required'}), 400
+
+    # Verify the code
+    result = leader_verification_service.verify_code(leader_email, verification_code)
+    
+    if result['verified']:
+        return jsonify({
+            'verified': True,
+            'club_name': result['club_name'],
+            'email': result['email']
+        })
+    else:
+        return jsonify({'error': result['error']}), 400
+
+@app.route('/api/create-club', methods=['POST'])
+@login_required
+@limiter.limit("10 per hour")
+def create_club():
+    data = request.get_json()
+    leader_email = data.get('leader_email')
+    verification_code = data.get('verification_code')
+
+    if not leader_email or not verification_code:
+        return jsonify({'error': 'Leader email and verification code are required'}), 400
+
     # Check if user already leads a club
     existing_club = Club.query.filter_by(leader_id=current_user.id).first()
     if existing_club:
         return jsonify({'error': 'You already lead a club'}), 400
 
-    # Verify leader credentials
-    verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+    # Verify the code first
+    verification_result = leader_verification_service.verify_code(leader_email, verification_code)
     if not verification_result['verified']:
-        return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
+        return jsonify({'error': 'Invalid or expired verification code'}), 400
 
     try:
         # Create new club with verified name

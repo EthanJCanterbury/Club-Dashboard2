@@ -684,23 +684,45 @@
         <div class="modal-body">
             <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
                 <h4 style="color: #856404; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Leader Verification Required</h4>
-                <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club.</p>
+                <p style="color: #856404; margin: 0; font-size: 0.85rem;">You must be a registered Hack Club leader to create a club. We'll send a verification code to your email.</p>
             </div>
             
-            <div class="form-group" style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748; font-size: 0.875rem;">Leader Email (as registered with Hack Club)</label>
-                <input type="email" id="modalLeaderEmail" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;" placeholder="Enter your registered leader email">
+            <div id="emailStep">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748; font-size: 0.875rem;">Leader Email (as registered with Hack Club)</label>
+                    <input type="email" id="modalLeaderEmail" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;" placeholder="Enter your registered leader email">
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748; font-size: 0.875rem;">Club Name (as registered with Hack Club)</label>
+                    <input type="text" id="modalLeaderClubName" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;" placeholder="Enter your club name" minlength="4">
+                    <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
+                </div>
+                
+                <button onclick="sendVerificationEmail()" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; border: none; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fas fa-envelope"></i> Send Verification Code
+                </button>
             </div>
-            
-            <div class="form-group" style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748; font-size: 0.875rem;">Club Name (as registered with Hack Club)</label>
-                <input type="text" id="modalLeaderClubName" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;" placeholder="Enter your club name" minlength="4">
-                <small style="color: #6c757d; font-size: 0.8rem;">At least 4 characters must match your registered club name</small>
+
+            <div id="verificationStep" style="display: none;">
+                <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <h4 style="color: #155724; margin: 0 0 0.5rem 0; font-size: 0.9rem;">📧 Check Your Email</h4>
+                    <p style="color: #155724; margin: 0; font-size: 0.85rem;" id="verificationMessage">We've sent a 6-digit verification code to your email.</p>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3748; font-size: 0.875rem;">Verification Code</label>
+                    <input type="text" id="modalVerificationCode" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; text-align: center; letter-spacing: 0.2rem;" placeholder="Enter 6-digit code" maxlength="6">
+                </div>
+                
+                <button onclick="createClub()" style="background: linear-gradient(135deg, #ec3750, #d63146); color: white; border: none; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <i class="fas fa-plus"></i> Create Club
+                </button>
+
+                <button onclick="goBackToEmailStep()" style="background: #6c757d; color: white; border: none; padding: 0.75rem; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; width: 100%; margin-top: 0.5rem;">
+                    ← Back to Email Step
+                </button>
             </div>
-            
-            <button onclick="createClub()" style="background: linear-gradient(135deg, #ec3750, #d63146); color: white; border: none; padding: 1rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                <i class="fas fa-plus"></i> Create Club
-            </button>
             
             <div id="createClubError" style="color: #dc3545; margin-top: 1rem; display: none;"></div>
             <div id="createClubSuccess" style="color: #28a745; margin-top: 1rem; display: none;"></div>
@@ -724,11 +746,14 @@
         document.getElementById('createClubModal').style.display = 'none';
         document.getElementById('modalLeaderEmail').value = '';
         document.getElementById('modalLeaderClubName').value = '';
+        document.getElementById('modalVerificationCode').value = '';
         document.getElementById('createClubError').style.display = 'none';
         document.getElementById('createClubSuccess').style.display = 'none';
+        document.getElementById('emailStep').style.display = 'block';
+        document.getElementById('verificationStep').style.display = 'none';
     }
 
-    function createClub() {
+    function sendVerificationEmail() {
         const email = document.getElementById('modalLeaderEmail').value;
         const clubName = document.getElementById('modalLeaderClubName').value;
         const errorDiv = document.getElementById('createClubError');
@@ -749,7 +774,7 @@
             return;
         }
 
-        fetch('/api/create-club', {
+        fetch('/api/send-verification-email', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -757,6 +782,55 @@
             body: JSON.stringify({
                 leader_email: email,
                 leader_club_name: clubName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('emailStep').style.display = 'none';
+                document.getElementById('verificationStep').style.display = 'block';
+                document.getElementById('verificationMessage').textContent = data.message;
+                window.verifiedClubName = data.club_name;
+            } else {
+                errorDiv.textContent = data.error;
+                errorDiv.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            errorDiv.textContent = 'Network error occurred';
+            errorDiv.style.display = 'block';
+        });
+    }
+
+    function createClub() {
+        const email = document.getElementById('modalLeaderEmail').value;
+        const verificationCode = document.getElementById('modalVerificationCode').value;
+        const errorDiv = document.getElementById('createClubError');
+        const successDiv = document.getElementById('createClubSuccess');
+
+        errorDiv.style.display = 'none';
+        successDiv.style.display = 'none';
+
+        if (!verificationCode) {
+            errorDiv.textContent = 'Please enter the verification code';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        if (verificationCode.length !== 6) {
+            errorDiv.textContent = 'Verification code must be 6 digits';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        fetch('/api/create-club', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                leader_email: email,
+                verification_code: verificationCode
             })
         })
         .then(response => response.json())
@@ -777,6 +851,13 @@
             errorDiv.textContent = 'Network error occurred';
             errorDiv.style.display = 'block';
         });
+    }
+
+    function goBackToEmailStep() {
+        document.getElementById('emailStep').style.display = 'block';
+        document.getElementById('verificationStep').style.display = 'none';
+        document.getElementById('createClubError').style.display = 'none';
+        document.getElementById('createClubSuccess').style.display = 'none';
     }
 
     // Close modal when clicking outside
