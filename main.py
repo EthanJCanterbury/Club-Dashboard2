@@ -393,8 +393,9 @@ def set_auth_cookie(response, user_id):
         token,
         max_age=5 * 24 * 60 * 60,  # 5 days in seconds
         httponly=True,
-        secure=request.is_secure,
-        samesite='Lax'
+        secure=False,  # Set to False for development, True for production HTTPS
+        samesite='Lax',
+        path='/'  # Ensure cookie is available for all paths
     )
     return response
 
@@ -405,8 +406,9 @@ def clear_auth_cookie(response):
         '',
         expires=0,
         httponly=True,
-        secure=request.is_secure,
-        samesite='Lax'
+        secure=False,  # Set to False for development, True for production HTTPS
+        samesite='Lax',
+        path='/'
     )
     return response
 
