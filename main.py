@@ -266,6 +266,43 @@ class AirtableService:
 
 airtable_service = AirtableService()
 
+# Email Verification Service
+class EmailVerificationService:
+    def __init__(self):
+        self.verification_codes = {}  # In production, use Redis or database
+    
+    def generate_verification_code(self):
+        return ''.join(secrets.choice(string.digits) for _ in range(6))
+    
+    def store_verification_code(self, email, club_name, code):
+        # Store with expiration (10 minutes)
+        self.verification_codes[email] = {
+            'code': code,
+            'club_name': club_name,
+            'expires_at': datetime.utcnow() + timedelta(minutes=10)
+        }
+    
+    def verify_code(self, email, code):
+        stored_data = self.verification_codes.get(email)
+        if not stored_data:
+            return False
+        
+        if datetime.utcnow() > stored_data['expires_at']:
+            del self.verification_codes[email]
+            return False
+        
+        if stored_data['code'] == code:
+            return stored_data['club_name']
+        
+        return False
+    
+    def send_verification_email(self, email, code, club_name):
+        # For now, just print the code (in production, integrate with Gmail API)
+        print(f"Verification code for {email}: {code} (Club: {club_name})")
+        return True
+
+email_verification_service = EmailVerificationService()
+
 # Leader Verification Service
 class LeaderVerificationService:
     def __init__(self):
@@ -1636,15 +1673,15 @@ def upload_screenshot():
         print(f"Full traceback: {error_details}")
         return jsonify({'success': False, 'error': f'Upload error: {str(e)}'}), 500
 
-@app.route('/api/create-club', methods=['POST'])
+@app.route('/api/send-leader-verification', methods=['POST'])
 @login_required
-@limiter.limit("10 per hour")
-def create_club():
+@limiter.limit("5 per hour")
+def send_leader_verification():
     data = request.get_json()
     leader_email = data.get('leader_email')
-    leader_club_name = data.get('leader_club_name')
+    club_name = data.get('club_name')
 
-    if not leader_email or not leader_club_name:
+    if not leader_email or not club_name:
         return jsonify({'error': 'Leader email and club name are required'}), 400
 
     # Check if user already leads a club
@@ -1652,14 +1689,46 @@ def create_club():
     if existing_club:
         return jsonify({'error': 'You already lead a club'}), 400
 
-    # Verify leader credentials
-    verification_result = leader_verification_service.verify_leader(leader_club_name, leader_email)
+    # Verify leader credentials with Airtable
+    verification_result = leader_verification_service.verify_leader(club_name, leader_email)
     if not verification_result['verified']:
         return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
 
+    # Generate and send verification code
+    verification_code = email_verification_service.generate_verification_code()
+    verified_club_name = verification_result['club_name']
+    
+    # Store the verification code
+    email_verification_service.store_verification_code(leader_email, verified_club_name, verification_code)
+    
+    # Send verification email (for now just log it)
+    email_verification_service.send_verification_email(leader_email, verification_code, verified_club_name)
+    
+    return jsonify({'success': True, 'message': f'Verification code sent to {leader_email}'})
+
+@app.route('/api/create-club', methods=['POST'])
+@login_required
+@limiter.limit("10 per hour")
+def create_club():
+    data = request.get_json()
+    leader_email = data.get('leader_email')
+    verification_code = data.get('verification_code')
+
+    if not leader_email or not verification_code:
+        return jsonify({'error': 'Leader email and verification code are required'}), 400
+
+    # Check if user already leads a club
+    existing_club = Club.query.filter_by(leader_id=current_user.id).first()
+    if existing_club:
+        return jsonify({'error': 'You already lead a club'}), 400
+
+    # Verify the email verification code
+    verified_club_name = email_verification_service.verify_code(leader_email, verification_code)
+    if not verified_club_name:
+        return jsonify({'error': 'Invalid or expired verification code'}), 400
+
     try:
         # Create new club with verified name
-        verified_club_name = verification_result['club_name']
         club = Club(
             name=verified_club_name,
             description="A verified Hack Club - update your club details in the dashboard",
@@ -1668,6 +1737,10 @@ def create_club():
         club.generate_join_code()
         db.session.add(club)
         db.session.commit()
+
+        # Clean up verification code
+        if leader_email in email_verification_service.verification_codes:
+            del email_verification_service.verification_codes[leader_email]
 
         return jsonify({'success': True, 'message': f'Club "{verified_club_name}" created successfully!'})
 
