@@ -1462,50 +1462,6 @@ def admin_login_as_user(user_id):
 
     return jsonify({'message': f'Successfully logged in as {user.username}'})
 
-@app.route('/api/create-club', methods=['POST'])
-@login_required
-@limiter.limit("10 per hour")
-def create_club():
-    if not db_available:
-        return jsonify({'error': 'Database is currently unavailable'}), 500
-
-    data = request.get_json()
-    club_name = data.get('club_name', '').strip()
-
-    if not club_name or len(club_name) < 3:
-        return jsonify({'error': 'Club name must be at least 3 characters long'}), 400
-
-    if len(club_name) > 100:
-        return jsonify({'error': 'Club name must be less than 100 characters'}), 400
-
-    try:
-        # Check if user is already leading a club
-        existing_club = Club.query.filter_by(leader_id=current_user.id).first()
-        if existing_club:
-            return jsonify({'error': 'You are already leading a club. Each user can only lead one club.'}), 400
-
-        # Create the club
-        club = Club(
-            name=club_name,
-            description=f"Welcome to {club_name}! Edit your club details in the dashboard to get started.",
-            leader_id=current_user.id
-        )
-        club.generate_join_code()
-        
-        db.session.add(club)
-        db.session.commit()
-
-        return jsonify({
-            'message': 'Club created successfully!',
-            'club_id': club.id,
-            'club_name': club.name,
-            'join_code': club.join_code
-        })
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Failed to create club: {str(e)}'}), 500
-
 @app.route('/api/upload-screenshot', methods=['POST'])
 @login_required
 @limiter.limit("50 per hour")
