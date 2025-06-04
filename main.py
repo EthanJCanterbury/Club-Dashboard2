@@ -800,11 +800,11 @@ def complete_slack_signup():
         if not first_name:
             return jsonify({'error': 'First name is required'}), 400
 
-        # Check if username or email is already taken
-        if User.query.filter_by(username=username).first():
+        # Check if username or email is already taken (case-insensitive)
+        if User.query.filter(db.func.lower(User.username) == username.lower()).first():
             return jsonify({'error': 'Username already taken'}), 400
 
-        if User.query.filter_by(email=email).first():
+        if User.query.filter(db.func.lower(User.email) == email.lower()).first():
             return jsonify({'error': 'Email already registered'}), 400
 
         # Verify leader if they want to create a club
@@ -886,11 +886,18 @@ def login():
         return redirect(url_for('dashboard'))
 
     if request.method == 'POST':
-        email = request.form.get('email')
+        email_or_username = request.form.get('email')
         password = request.form.get('password')
 
         try:
-            user = User.query.filter_by(email=email).first()
+            # Try to find user by email or username (case-insensitive)
+            user = User.query.filter(
+                db.or_(
+                    db.func.lower(User.email) == email_or_username.lower(),
+                    db.func.lower(User.username) == email_or_username.lower()
+                )
+            ).first()
+            
             if user and user.check_password(password):
                 login_user(user, remember=True)
                 session.permanent = True
@@ -899,7 +906,7 @@ def login():
                 flash(f'Welcome back, {user.username}!', 'success')
                 return redirect(url_for('dashboard'))
 
-            flash('Invalid email or password', 'error')
+            flash('Invalid email/username or password', 'error')
         except Exception as e:
             flash('Database error. Please try again later.', 'error')
 
@@ -927,11 +934,11 @@ def signup():
         leader_club_name = request.form.get('leader_club_name')
 
         try:
-            if User.query.filter_by(email=email).first():
+            if User.query.filter(db.func.lower(User.email) == email.lower()).first():
                 flash('Email already registered', 'error')
                 return render_template('signup.html')
 
-            if User.query.filter_by(username=username).first():
+            if User.query.filter(db.func.lower(User.username) == username.lower()).first():
                 flash('Username already taken', 'error')
                 return render_template('signup.html')
 
@@ -1525,15 +1532,15 @@ def update_user():
     new_password = data.get('new_password')
     hackatime_api_key = data.get('hackatime_api_key')
 
-    # Check if username is taken by another user
-    if username and username != current_user.username:
-        existing_user = User.query.filter_by(username=username).first()
+    # Check if username is taken by another user (case-insensitive)
+    if username and username.lower() != current_user.username.lower():
+        existing_user = User.query.filter(db.func.lower(User.username) == username.lower()).first()
         if existing_user:
             return jsonify({'error': 'Username already taken'}), 400
 
-    # Check if email is taken by another user
-    if email and email != current_user.email:
-        existing_user = User.query.filter_by(email=email).first()
+    # Check if email is taken by another user (case-insensitive)
+    if email and email.lower() != current_user.email.lower():
+        existing_user = User.query.filter(db.func.lower(User.email) == email.lower()).first()
         if existing_user:
             return jsonify({'error': 'Email already registered'}), 400
 
