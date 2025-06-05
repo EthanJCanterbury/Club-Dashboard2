@@ -491,16 +491,6 @@ function validateAge() {
     .then(data => {
         if (data.success) {
             showToast('success', data.message, 'Account Created');
-
-            // Set auth cookie if provided
-            if (data.set_auth_cookie && data.user_id) {
-                fetch('/api/set-auth-cookie', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({user_id: data.user_id})
-                });
-            }
-
             setTimeout(() => {
                 window.location.href = '/dashboard';
             }, 1500);
