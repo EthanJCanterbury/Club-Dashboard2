@@ -199,7 +199,6 @@ try:
     login_manager = LoginManager()
     login_manager.init_app(app)
     login_manager.login_view = 'login'
-    login_manager.remember_cookie_duration = timedelta(days=30)
     login_manager.session_protection = "strong"
     
     limiter = Limiter(
@@ -886,7 +885,7 @@ def slack_callback():
 
     if user:
         # User exists, log them in
-        login_user(user, remember=True)
+        login_user(user)
         session.permanent = True
         user.last_login = datetime.utcnow()
         db.session.commit()
@@ -1027,7 +1026,7 @@ def complete_slack_signup():
 
             # Clear Slack signup data and log user in
             session.pop('slack_signup_data', None)
-            login_user(user, remember=True)
+            login_user(user)
             session.permanent = True
             user.last_login = datetime.utcnow()
             db.session.commit()
@@ -1084,7 +1083,7 @@ def login():
             ).first()
             
             if user and user.check_password(password):
-                login_user(user, remember=True)
+                login_user(user)
                 session.permanent = True
                 user.last_login = datetime.utcnow()
                 db.session.commit()
