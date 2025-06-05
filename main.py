@@ -193,6 +193,9 @@ SLACK_CLIENT_SECRET = os.getenv('SLACK_CLIENT_SECRET')
 SLACK_SIGNING_SECRET = os.getenv('SLACK_SIGNING_SECRET')
 
 db_available = True
+db = None
+login_manager = None
+limiter = None
 
 try:
     db = SQLAlchemy(app)
@@ -211,131 +214,147 @@ try:
 except Exception as e:
     print(f"Database initialization failed: {e}")
     db_available = False
-    db = None
-    login_manager = None
-    limiter = None
 
-# Models
-class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    first_name = db.Column(db.String(50))
-    last_name = db.Column(db.String(50))
-    birthday = db.Column(db.Date)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_login = db.Column(db.DateTime)
-    is_admin = db.Column(db.Boolean, default=False)
-    is_suspended = db.Column(db.Boolean, default=False)
-    hackatime_api_key = db.Column(db.String(255))
-    slack_user_id = db.Column(db.String(255), unique=True)
+# Models - only define if database is available
+if db_available and db:
+    class User(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        username = db.Column(db.String(80), unique=True, nullable=False)
+        email = db.Column(db.String(120), unique=True, nullable=False)
+        password_hash = db.Column(db.String(255), nullable=False)
+        first_name = db.Column(db.String(50))
+        last_name = db.Column(db.String(50))
+        birthday = db.Column(db.Date)
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
+        last_login = db.Column(db.DateTime)
+        is_admin = db.Column(db.Boolean, default=False)
+        is_suspended = db.Column(db.Boolean, default=False)
+        hackatime_api_key = db.Column(db.String(255))
+        slack_user_id = db.Column(db.String(255), unique=True)
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+        def set_password(self, password):
+            self.password_hash = generate_password_hash(password)
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+        def check_password(self, password):
+            return check_password_hash(self.password_hash, password)
 
-    def is_authenticated(self):
-        return True
+        def is_authenticated(self):
+            return True
 
-    def is_active(self):
-        return not self.is_suspended
+        def is_active(self):
+            return not self.is_suspended
 
-    def is_anonymous(self):
-        return False
+        def is_anonymous(self):
+            return False
 
-    def get_id(self):
-        return str(self.id)
+        def get_id(self):
+            return str(self.id)
 
-class Club(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    location = db.Column(db.String(255))
-    leader_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    join_code = db.Column(db.String(8), unique=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    balance = db.Column(db.Numeric(10, 2), default=0.00)
+    class Club(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        name = db.Column(db.String(100), nullable=False)
+        description = db.Column(db.Text)
+        location = db.Column(db.String(255))
+        leader_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+        join_code = db.Column(db.String(8), unique=True, nullable=False)
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
+        balance = db.Column(db.Numeric(10, 2), default=0.00)
 
-    leader = db.relationship('User', backref='led_clubs')
-    members = db.relationship('ClubMembership', back_populates='club', cascade='all, delete-orphan')
+        leader = db.relationship('User', backref='led_clubs')
+        members = db.relationship('ClubMembership', back_populates='club', cascade='all, delete-orphan')
 
-    def generate_join_code(self):
-        self.join_code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
+        def generate_join_code(self):
+            self.join_code = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(8))
 
-class ClubMembership(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
-    role = db.Column(db.String(20), default='member')  # member, co-leader
-    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+    class ClubMembership(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+        club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+        role = db.Column(db.String(20), default='member')  # member, co-leader
+        joined_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship('User', backref='club_memberships')
-    club = db.relationship('Club', back_populates='members')
+        user = db.relationship('User', backref='club_memberships')
+        club = db.relationship('Club', back_populates='members')
 
-class ClubPost(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    class ClubPost(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+        user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+        content = db.Column(db.Text, nullable=False)
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    club = db.relationship('Club', backref='posts')
-    user = db.relationship('User', backref='posts')
+        club = db.relationship('Club', backref='posts')
+        user = db.relationship('User', backref='posts')
 
-class ClubAssignment(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text, nullable=False)
-    due_date = db.Column(db.DateTime)
-    for_all_members = db.Column(db.Boolean, default=True)
-    status = db.Column(db.String(20), default='active')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    class ClubAssignment(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+        title = db.Column(db.String(200), nullable=False)
+        description = db.Column(db.Text, nullable=False)
+        due_date = db.Column(db.DateTime)
+        for_all_members = db.Column(db.Boolean, default=True)
+        status = db.Column(db.String(20), default='active')
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    club = db.relationship('Club', backref='assignments')
+        club = db.relationship('Club', backref='assignments')
 
-class ClubMeeting(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text)
-    meeting_date = db.Column(db.Date, nullable=False)
-    start_time = db.Column(db.String(10), nullable=False)
-    end_time = db.Column(db.String(10))
-    location = db.Column(db.String(255))
-    meeting_link = db.Column(db.String(500))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    class ClubMeeting(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+        title = db.Column(db.String(200), nullable=False)
+        description = db.Column(db.Text)
+        meeting_date = db.Column(db.Date, nullable=False)
+        start_time = db.Column(db.String(10), nullable=False)
+        end_time = db.Column(db.String(10))
+        location = db.Column(db.String(255))
+        meeting_link = db.Column(db.String(500))
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    club = db.relationship('Club', backref='meetings')
+        club = db.relationship('Club', backref='meetings')
 
-class ClubResource(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    url = db.Column(db.String(500), nullable=False)
-    description = db.Column(db.Text)
-    icon = db.Column(db.String(50), default='book')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    class ClubResource(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+        title = db.Column(db.String(200), nullable=False)
+        url = db.Column(db.String(500), nullable=False)
+        description = db.Column(db.Text)
+        icon = db.Column(db.String(50), default='book')
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    club = db.relationship('Club', backref='resources')
+        club = db.relationship('Club', backref='resources')
 
-class ClubProject(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    name = db.Column(db.String(200), nullable=False)
-    description = db.Column(db.Text)
-    url = db.Column(db.String(500))
-    github_url = db.Column(db.String(500))
-    featured = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+    class ClubProject(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        club_id = db.Column(db.Integer, db.ForeignKey('club.id'), nullable=False)
+        user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+        name = db.Column(db.String(200), nullable=False)
+        description = db.Column(db.Text)
+        url = db.Column(db.String(500))
+        github_url = db.Column(db.String(500))
+        featured = db.Column(db.Boolean, default=False)
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
+        updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    club = db.relationship('Club', backref='projects')
-    user = db.relationship('User', backref='projects')
+        club = db.relationship('Club', backref='projects')
+        user = db.relationship('User', backref='projects')
+else:
+    # Define dummy classes when database is not available
+    class User:
+        pass
+    class Club:
+        pass
+    class ClubMembership:
+        pass
+    class ClubPost:
+        pass
+    class ClubAssignment:
+        pass
+    class ClubMeeting:
+        pass
+    class ClubResource:
+        pass
+    class ClubProject:
+        pass
 
 @login_manager.user_loader
 def load_user(user_id):
