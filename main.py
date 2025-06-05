@@ -27,7 +27,7 @@ except ImportError:
 
 # Input validation and sanitization utilities
 class InputValidator:
-    
+
     # Regex patterns for validation
     USERNAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{3,30}$')
     EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
@@ -38,14 +38,14 @@ class InputValidator:
     TIME_PATTERN = re.compile(r'^([01]?[0-9]|2[0-3]):[0-5][0-9]$')
     DATE_PATTERN = re.compile(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
     JOIN_CODE_PATTERN = re.compile(r'^[A-Z0-9]{8}$')
-    
+
     @staticmethod
     def sanitize_text(text):
         """Sanitize text input to prevent XSS"""
         if not text:
             return text
         return html.escape(str(text).strip())
-    
+
     @staticmethod
     def validate_username(username):
         """Validate username format"""
@@ -55,7 +55,7 @@ class InputValidator:
         if not InputValidator.USERNAME_PATTERN.match(username):
             return False, "Username must be 3-30 characters and contain only letters, numbers, hyphens, and underscores"
         return True, username
-    
+
     @staticmethod
     def validate_email(email):
         """Validate email format"""
@@ -65,7 +65,7 @@ class InputValidator:
         if not InputValidator.EMAIL_PATTERN.match(email):
             return False, "Invalid email format"
         return True, email
-    
+
     @staticmethod
     def validate_name(name, field_name="Name"):
         """Validate name fields"""
@@ -75,7 +75,7 @@ class InputValidator:
         if not InputValidator.NAME_PATTERN.match(name):
             return False, f"{field_name} can only contain letters, spaces, hyphens, and apostrophes"
         return True, name
-    
+
     @staticmethod
     def validate_url(url, field_name="URL"):
         """Validate URL format"""
@@ -85,7 +85,7 @@ class InputValidator:
         if not InputValidator.URL_PATTERN.match(url):
             return False, f"Invalid {field_name} format. Must be a valid HTTP/HTTPS URL"
         return True, url
-    
+
     @staticmethod
     def validate_club_name(club_name):
         """Validate club name format"""
@@ -95,7 +95,7 @@ class InputValidator:
         if not InputValidator.CLUB_NAME_PATTERN.match(club_name):
             return False, "Club name must be 4-100 characters and contain only letters, numbers, spaces, hyphens, and apostrophes"
         return True, club_name
-    
+
     @staticmethod
     def validate_verification_code(code):
         """Validate verification code format"""
@@ -105,7 +105,7 @@ class InputValidator:
         if not InputValidator.VERIFICATION_CODE_PATTERN.match(code):
             return False, "Verification code must be 6 digits"
         return True, code
-    
+
     @staticmethod
     def validate_date(date_str, field_name="Date"):
         """Validate date format"""
@@ -119,7 +119,7 @@ class InputValidator:
             return True, date_str
         except ValueError:
             return False, f"Invalid {field_name}"
-    
+
     @staticmethod
     def validate_time(time_str, field_name="Time"):
         """Validate time format"""
@@ -129,7 +129,7 @@ class InputValidator:
         if not InputValidator.TIME_PATTERN.match(time_str):
             return False, f"Invalid {field_name} format. Use HH:MM"
         return True, time_str
-    
+
     @staticmethod
     def validate_text_content(text, min_length=1, max_length=5000, field_name="Text"):
         """Validate text content"""
@@ -141,7 +141,7 @@ class InputValidator:
         if len(text) > max_length:
             return False, f"{field_name} must be no more than {max_length} characters"
         return True, InputValidator.sanitize_text(text)
-    
+
     @staticmethod
     def validate_password(password):
         """Validate password strength"""
@@ -152,7 +152,7 @@ class InputValidator:
         if len(password) > 128:
             return False, "Password must be no more than 128 characters long"
         return True, password
-    
+
     @staticmethod
     def validate_join_code(join_code):
         """Validate join code format"""
@@ -182,10 +182,10 @@ if session_available:
     app.config['SESSION_USE_SIGNER'] = True
     app.config['SESSION_KEY_PREFIX'] = 'hackclub_'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
-    
+
     # Create session directory if it doesn't exist
     os.makedirs(app.config['SESSION_FILE_DIR'], exist_ok=True)
-    
+
     Session(app)
 
 SLACK_CLIENT_ID = os.getenv('SLACK_CLIENT_ID')
@@ -203,7 +203,7 @@ try:
     login_manager.init_app(app)
     login_manager.login_view = 'login'
     login_manager.session_protection = "strong"
-    
+
     limiter = Limiter(
         key_func=get_remote_address,
         app=app,
@@ -216,7 +216,7 @@ except Exception as e:
     db_available = False
 
 # Models - only define if database is available
-if db_available and db:
+if db_available and db is not None:
     class User(db.Model):
         id = db.Column(db.Integer, primary_key=True)
         username = db.Column(db.String(80), unique=True, nullable=False)
@@ -472,28 +472,28 @@ class LeaderVerificationService:
             clean_input_club_name = str(club_name).strip().strip('"\'')
             print(f"DEBUG: Original club name: '{club_name}'")
             print(f"DEBUG: Cleaned input club name: '{clean_input_club_name}'")
-            
+
             # First check if this is a valid leader
             params = {
                 'filterByFormula': f'AND(SEARCH(LOWER("{email}"), LOWER({{Current Leaders\' Emails}})), SEARCH(LOWER("{clean_input_club_name[:4]}"), LOWER({{Venue}})))'
             }
-            
+
             response = requests.get(self.base_url, headers=self.headers, params=params)
-            
+
             if response.status_code != 200:
                 return {'success': False, 'error': f'Verification failed: {response.status_code}'}
-            
+
             data = response.json()
             records = data.get('records', [])
-            
+
             leader_found = False
             verified_club_name = clean_input_club_name
-            
+
             for record in records:
                 fields = record.get('fields', {})
                 venue = fields.get('Venue', '').lower()
                 emails = fields.get("Current Leaders' Emails", '').lower()
-                
+
                 if (clean_input_club_name.lower()[:4] in venue and 
                     len(clean_input_club_name) >= 4 and 
                     email.lower() in emails):
@@ -507,19 +507,19 @@ class LeaderVerificationService:
                     # Remove any remaining escaped quotes
                     verified_club_name = verified_club_name.replace('\\"', '').replace("\\'", '').strip()
                     break
-            
+
             if not leader_found:
                 return {'success': False, 'error': 'No matching club and email combination found'}
 
             # Generate verification code
             verification_code = ''.join(secrets.choice(string.digits) for _ in range(6))
-            
+
             # Store verification request in Airtable
             # Clean the verified club name - just strip whitespace, don't remove quotes aggressively
             final_club_name = str(verified_club_name).strip()
             print(f"DEBUG: Verified club name: '{verified_club_name}'")
             print(f"DEBUG: Final club name for Airtable: '{final_club_name}'")
-            
+
             fields = {
                 'Email': email,
                 'Code': verification_code,
@@ -539,7 +539,7 @@ class LeaderVerificationService:
             else:
                 print(f"Airtable verification error: {verification_response.status_code} - {verification_response.text}")
                 return {'success': False, 'error': 'Failed to send verification email'}
-                
+
         except Exception as e:
             print(f"Error sending verification email: {str(e)}")
             return {'success': False, 'error': f'Verification error: {str(e)}'}
@@ -553,25 +553,25 @@ class LeaderVerificationService:
             params = {
                 'filterByFormula': f'AND({{Email}} = "{email}", {{Code}} = "{code}")'
             }
-            
+
             print(f"DEBUG: Verification lookup params: {params}")
             response = requests.get(self.verification_url, headers=self.headers, params=params)
             print(f"DEBUG: Verification lookup response: {response.status_code} - {response.text}")
-            
+
             if response.status_code == 200:
                 data = response.json()
                 records = data.get('records', [])
-                
+
                 if records:
                     # Found matching verification record
                     record = records[0]
                     record_id = record['id']
                     fields = record.get('fields', {})
-                    
+
                     # Check if already verified
                     if fields.get('Status') == 'Verified':
                         return {'verified': False, 'error': 'Verification code already used'}
-                    
+
                     # Check if verification is not too old (e.g., within 1 hour)
                     if fields.get('Created'):
                         try:
@@ -580,14 +580,14 @@ class LeaderVerificationService:
                                 return {'verified': False, 'error': 'Verification code expired'}
                         except:
                             pass
-                    
+
                     # Update record status to verified (if Status field exists)
                     update_payload = {
                         'fields': {
                             'Status': 'Verified'
                         }
                     }
-                    
+
                     # Try to update, but don't fail if Status field doesn't exist
                     try:
                         update_response = requests.patch(
@@ -598,18 +598,18 @@ class LeaderVerificationService:
                         print(f"DEBUG: Update response: {update_response.status_code} - {update_response.text}")
                     except Exception as update_error:
                         print(f"DEBUG: Update failed (non-critical): {update_error}")
-                    
+
                     return {
                         'verified': True,
                         'club_name': fields.get('Club', ''),
                         'email': fields.get('Email', '')
                     }
-                
+
                 return {'verified': False, 'error': 'Invalid verification code or email'}
             else:
                 print(f"Airtable verification lookup error: {response.status_code} - {response.text}")
                 return {'verified': False, 'error': f'Verification check failed: {response.status_code}'}
-                
+
         except Exception as e:
             print(f"Error verifying code: {str(e)}")
             import traceback
@@ -625,19 +625,19 @@ class LeaderVerificationService:
             params = {
                 'filterByFormula': f'AND(SEARCH(LOWER("{email}"), LOWER({{Current Leaders\' Emails}})), SEARCH(LOWER("{club_name[:4]}"), LOWER({{Venue}})))'
             }
-            
+
             response = requests.get(self.base_url, headers=self.headers, params=params)
-            
+
             if response.status_code == 200:
                 data = response.json()
                 records = data.get('records', [])
-                
+
                 if records:
                     for record in records:
                         fields = record.get('fields', {})
                         venue = fields.get('Venue', '').lower()
                         emails = fields.get("Current Leaders' Emails", '').lower()
-                        
+
                         if (club_name.lower()[:4] in venue and 
                             len(club_name) >= 4 and 
                             email.lower() in emails):
@@ -646,11 +646,11 @@ class LeaderVerificationService:
                                 'club_name': fields.get('Venue', ''),
                                 'leaders': fields.get('Current Leader(s)', '')
                             }
-                
+
                 return {'verified': False, 'error': 'No matching club and email combination found'}
             else:
                 return {'verified': False, 'error': f'Verification failed: {response.status_code}'}
-                
+
         except Exception as e:
             print(f"Error verifying leader: {str(e)}")
             return {'verified': False, 'error': f'Verification error: {str(e)}'}
@@ -974,13 +974,13 @@ def complete_slack_signup():
             valid, birthday = InputValidator.validate_date(birthday, "Birthday")
             if not valid:
                 return jsonify({'error': birthday}), 400
-            
+
             # Validate age (must be between 7 and 18)
             try:
                 birth_date = datetime.strptime(birthday, '%Y-%m-%d').date()
                 today = datetime.now().date()
                 age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                
+
                 if age < 7 or age > 18:
                     return jsonify({'error': 'You must be between 7 and 18 years old to create an account'}), 400
             except ValueError:
@@ -1004,12 +1004,12 @@ def complete_slack_signup():
             valid, leader_club_name = InputValidator.validate_club_name(leader_club_name)
             if not valid:
                 return jsonify({'error': leader_club_name}), 400
-            
+
             verification_code = data.get('verification_code', '').strip()
             valid, verification_code = InputValidator.validate_verification_code(verification_code)
             if not valid:
                 return jsonify({'error': verification_code}), 400
-            
+
             verification_result = leader_verification_service.verify_code(leader_email, verification_code)
             if not verification_result['verified']:
                 return jsonify({'error': f'Leader verification failed: {verification_result["error"]}'}), 400
@@ -1100,7 +1100,7 @@ def login():
                     db.func.lower(User.username) == email_or_username.lower()
                 )
             ).first()
-            
+
             if user and user.check_password(password):
                 login_user(user)
                 session.permanent = True
@@ -1173,13 +1173,13 @@ def signup():
             if not valid:
                 flash(birthday, 'error')
                 return render_template('signup.html')
-            
+
             # Validate age (must be between 7 and 18)
             try:
                 birth_date = datetime.strptime(birthday, '%Y-%m-%d').date()
                 today = datetime.now().date()
                 age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-                
+
                 if age < 7 or age > 18:
                     flash('You must be between 7 and 18 years old to create an account', 'error')
                     return render_template('signup.html')
@@ -1209,13 +1209,13 @@ def signup():
                 if not valid:
                     flash(leader_club_name, 'error')
                     return render_template('signup.html')
-                
+
                 verification_code = request.form.get('verification_code', '').strip()
                 valid, verification_code = InputValidator.validate_verification_code(verification_code)
                 if not valid:
                     flash(verification_code, 'error')
                     return render_template('signup.html')
-                
+
                 verification_result = leader_verification_service.verify_code(leader_email, verification_code)
                 if not verification_result['verified']:
                     flash(f'Leader verification failed: {verification_result["error"]}', 'error')
@@ -1314,7 +1314,7 @@ def club_dashboard(club_id=None):
 @app.route('/join-club')
 def join_club_redirect():
     join_code = request.args.get('code', '').strip()
-    
+
     # Validate join code
     valid, join_code = InputValidator.validate_join_code(join_code)
     if not valid:
@@ -1535,7 +1535,7 @@ def club_meetings(club_id):
             if not valid:
                 return jsonify({'error': end_time}), 400
 
-        # Validate location if provided
+        # Validate location if provided```python
         location = data.get('location', '').strip()
         if location:
             valid, location = InputValidator.validate_text_content(location, min_length=0, max_length=255, field_name="Location")
@@ -1999,11 +1999,11 @@ def update_user():
     if new_password:
         if not current_password:
             return jsonify({'error': 'Current password required to change password'}), 400
-        
+
         valid, password_msg = InputValidator.validate_password(new_password)
         if not valid:
             return jsonify({'error': password_msg}), 400
-            
+
         if not current_user.check_password(current_password):
             return jsonify({'error': 'Current password is incorrect'}), 400
         current_user.set_password(new_password)
@@ -2297,7 +2297,7 @@ def send_verification_email():
         leader_club_name, 
         current_user.username
     )
-    
+
     if result['success']:
         return jsonify({
             'success': True,
@@ -2323,7 +2323,7 @@ def send_verification_email_signup():
         leader_club_name, 
         'New User (Signup)'
     )
-    
+
     if result['success']:
         return jsonify({
             'success': True,
@@ -2346,7 +2346,7 @@ def verify_leader_code():
 
     # Verify the code
     result = leader_verification_service.verify_code(leader_email, verification_code)
-    
+
     if result['verified']:
         return jsonify({
             'verified': True,
@@ -2549,7 +2549,7 @@ def test_airtable_connection():
         return jsonify({'error': f'Error testing Airtable: {str(e)}'}), 500
 
 if __name__ == '__main__':
-        
+
     if db_available:
         try:
             with app.app_context():
